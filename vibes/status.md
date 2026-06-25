@@ -4,7 +4,7 @@
 > Current state: Complete against the Codex build brief  
 > Verification: `npm run build` passed; Vite dev server started at `http://127.0.0.1:5173/`
 
----
+----
 
 ## Completion Summary
 
