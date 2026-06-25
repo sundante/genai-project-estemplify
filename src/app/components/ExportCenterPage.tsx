@@ -14,10 +14,10 @@ import * as exportInfra from '../../utils/exports/exportInfra';
 import * as exportAssumptions from '../../utils/exports/exportAssumptions';
 import * as exportRisks from '../../utils/exports/exportRisks';
 import * as exportRoi from '../../utils/exports/exportRoi';
-import { exportCsvPackage, exportJson } from '../../utils/exports/core';
+import { exportCsvPackage, exportJson, exportSectionAsExcel, exportSectionAsPdf, exportSectionAsWord } from '../../utils/exports/core';
 
 const sectionRows = [
-  { name: 'Overview', count: (s: any) => 12, exporters: exportOverview },
+  { name: 'Overview', count: () => 22, exporters: exportOverview },
   { name: 'Components', count: (s: any) => s.azure.selectedComponents.length, exporters: exportComponents },
   { name: 'Agents', count: () => 8, exporters: exportAgents },
   { name: 'WBS', count: (s: any) => s.azure.wbs.filter((r: any) => r.includeInExport).length, exporters: exportWbs },
@@ -26,6 +26,15 @@ const sectionRows = [
   { name: 'Assumptions & Dependencies', count: (s: any) => s.azure.assumptions.filter((r: any) => r.includeInExport).length + s.azure.dependencies.filter((r: any) => r.includeInExport).length, exporters: exportAssumptions },
   { name: 'Risks', count: (s: any) => s.azure.risks.filter((r: any) => r.includeInExport).length, exporters: exportRisks },
   { name: 'ROI', count: () => 6, exporters: exportRoi },
+  {
+    name: 'Delivery & Support',
+    count: () => 21,
+    exporters: {
+      exportAsExcel: (state: any) => exportSectionAsExcel('delivery', state),
+      exportAsPdf: (state: any) => exportSectionAsPdf('delivery', state),
+      exportAsWord: (state: any) => exportSectionAsWord('delivery', state),
+    },
+  },
 ];
 
 function StatusLine({ ok, label }: { ok: boolean; label: string }) {
@@ -65,7 +74,7 @@ export function ExportCenterPage() {
   };
 
   const fullCards = [
-    { title: 'Excel Workbook (.xlsx)', desc: '13-sheet workbook with all sections', icon: Sheet, action: () => fullPackage.exportAsExcel(state) },
+    { title: 'Excel Workbook (.xlsx)', desc: '10-section workbook with all sections', icon: Sheet, action: () => fullPackage.exportAsExcel(state) },
     { title: 'Word Document (.docx)', desc: 'Formatted proposal document with cover page', icon: FileText, action: () => fullPackage.exportAsWord(state) },
     { title: 'PDF', desc: 'Print-ready document via jsPDF or browser print', icon: FileType, action: () => fullPackage.exportAsPdf(state) },
     { title: 'JSON', desc: 'Full workspace snapshot for reload or API use', icon: FileJson, action: () => exportJson(state) },
@@ -131,6 +140,7 @@ export function ExportCenterPage() {
           <StatusLine ok={validation.complexity} label="All 10 complexity dimensions scored" />
           <StatusLine ok={validation.wbs} label="WBS has at least 1 included row" />
           <StatusLine ok={validation.resources} label="At least 1 included resource row" />
+          <StatusLine ok={Boolean(state.azure.delivery.engagementModel || state.azure.delivery.phaseApproach || state.azure.delivery.supportModel)} label="Delivery & Support considerations captured" />
         </div>
         <div className="mt-4 flex flex-wrap gap-2">
           <Badge variant="outline">{validation.wbsRows} WBS rows</Badge>

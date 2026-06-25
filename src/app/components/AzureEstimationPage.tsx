@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useSearchParams } from 'react-router';
+import { useSearchParams, useNavigate } from 'react-router';
 import { WorkflowNav } from './WorkflowNav';
 import { useWorkbench, WBSRow, ResourceRow, AssumptionRow, DependencyRow, RiskRow } from './WorkbenchContext';
 import { Button } from './ui/button';
@@ -8,6 +8,8 @@ import { Textarea } from './ui/textarea';
 import { Label } from './ui/label';
 import { Badge } from './ui/badge';
 import { Slider } from './ui/slider';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
+import { Switch } from './ui/switch';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from './ui/dropdown-menu';
 import {
   Save, Plus, Trash2, Edit2, Check, X, RefreshCw, Copy, Eye,
@@ -23,7 +25,7 @@ import * as exportInfra from '../../utils/exports/exportInfra';
 import * as exportAssumptions from '../../utils/exports/exportAssumptions';
 import * as exportRisks from '../../utils/exports/exportRisks';
 import * as exportRoi from '../../utils/exports/exportRoi';
-import { monthlyRunCost, workflowsPerMonth } from '../../utils/exports/core';
+import { monthlyRunCost, workflowsPerMonth, exportSectionAsExcel, exportSectionAsPdf, exportSectionAsWord } from '../../utils/exports/core';
 
 const TABS = [
   { id: 'overview', label: 'A. Overview', icon: Cloud },
@@ -35,7 +37,21 @@ const TABS = [
   { id: 'assumptions', label: 'G. Assumptions', icon: Shield },
   { id: 'risks', label: 'H. Risks', icon: AlertTriangle },
   { id: 'roi', label: 'I. ROI', icon: TrendingUp },
+  { id: 'delivery', label: 'J. Delivery & Support', icon: Users },
 ];
+
+const TAB_PHASE_MAP: Record<string, string> = {
+  overview: 'hld',
+  components: 'hld',
+  agents: 'hld',
+  wbs: 'estimation',
+  resources: 'estimation',
+  infra: 'estimation',
+  assumptions: 'risk-register',
+  risks: 'risk-register',
+  roi: 'roi',
+  delivery: 'delivery',
+};
 
 const sectionExporters: Record<string, { exportAsExcel: (state: any) => void; exportAsPdf: (state: any) => void; exportAsWord: (state: any) => void | Promise<void> }> = {
   overview: exportOverview,
@@ -47,6 +63,11 @@ const sectionExporters: Record<string, { exportAsExcel: (state: any) => void; ex
   assumptions: exportAssumptions,
   risks: exportRisks,
   roi: exportRoi,
+  delivery: {
+    exportAsExcel: (state) => exportSectionAsExcel('delivery', state),
+    exportAsPdf: (state) => exportSectionAsPdf('delivery', state),
+    exportAsWord: (state) => exportSectionAsWord('delivery', state),
+  },
 };
 
 // ─── AZURE COMPONENTS ────────────────────────────────────────────────────────
@@ -198,6 +219,18 @@ function OverviewTab() {
   const { state, setAzureOverview, setAzureMode } = useWorkbench();
   const { overview, mode } = state.azure;
   const isEditable = mode === 'working-copy';
+  const basis = state.azure.estimationBasis;
+  const parseRate = (value: string) => {
+    const parsed = parseFloat(String(value || '').replace(/[^0-9.]/g, ''));
+    return Number.isFinite(parsed) ? parsed : basis.defaultHourlyRate;
+  };
+  const includedResources = state.azure.resources.filter(row => row.includeInExport);
+  const effortDays = includedResources.reduce((sum, row) => sum + row.effortDays, 0);
+  const effortHours = effortDays * basis.hoursPerDay;
+  const buildCost = includedResources.reduce((sum, row) => sum + row.effortDays * basis.hoursPerDay * parseRate(row.ratePlaceholder), 0);
+  const runCost = monthlyRunCost(state) || 0;
+  const tco12 = buildCost + runCost * 12;
+  const money = (value: number, suffix = '') => value > 0 ? `$${value.toLocaleString(undefined, { maximumFractionDigits: 0 })}${suffix}` : '—';
 
   const inScopeSteps = [
     'Intake request received and validated',
@@ -247,6 +280,41 @@ function OverviewTab() {
           readOnly={!isEditable}
           className={`min-h-20 ${!isEditable ? 'bg-slate-50 dark:bg-slate-900' : ''}`}
         />
+      </div>
+
+      <div className="space-y-1.5">
+        <Label>Win Theme / Executive Summary</Label>
+        <Textarea
+          value={overview.executiveSummary ?? ''}
+          onChange={e => isEditable && setAzureOverview({ executiveSummary: e.target.value })}
+          readOnly={!isEditable}
+          placeholder="Describe why this approach wins — the key differentiator and business impact headline for the proposal cover..."
+          className={`min-h-24 ${!isEditable ? 'bg-slate-50 dark:bg-slate-900' : ''}`}
+        />
+      </div>
+
+      <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-700 p-4">
+        <div className="flex items-center gap-2 mb-4">
+          <Info className="size-4 text-blue-500" />
+          <h4 className="text-slate-800 dark:text-slate-100">Cost Summary (auto-calculated)</h4>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700 p-4">
+            <div className="text-xs text-slate-500 dark:text-slate-400 mb-1">Estimated Build Cost (Labour)</div>
+            <div className="text-xl font-semibold text-slate-900 dark:text-slate-100">{money(buildCost)}</div>
+            <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">{effortDays > 0 ? `${effortDays} days / ${effortHours} hours` : 'Add resource rates to calculate'}</div>
+          </div>
+          <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700 p-4">
+            <div className="text-xs text-slate-500 dark:text-slate-400 mb-1">Monthly Run Cost (Infra)</div>
+            <div className="text-xl font-semibold text-slate-900 dark:text-slate-100">{money(runCost, runCost > 0 ? ' / mo' : '')}</div>
+            <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">From Infra & Tokens unit rates</div>
+          </div>
+          <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700 p-4">
+            <div className="text-xs text-slate-500 dark:text-slate-400 mb-1">12-Month TCO</div>
+            <div className="text-xl font-semibold text-slate-900 dark:text-slate-100">{money(tco12)}</div>
+            <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">Build labour + 12 months run cost</div>
+          </div>
+        </div>
       </div>
 
       <div className="bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 p-5">
@@ -375,6 +443,7 @@ function WBSTab() {
   const [newRow, setNewRow] = useState<Partial<WBSRow>>({ phase: '', activity: '', deliverable: '', role: '', complexity: 'Medium', effortDays: 1, dependency: '', acceptanceCriteria: '', includeInExport: true });
 
   const totalEffort = wbs.filter(r => r.includeInExport).reduce((s, r) => s + r.effortDays, 0);
+  const totalEffortHours = totalEffort * basis.hoursPerDay;
 
   const handleAdd = () => {
     if (!newRow.activity || !newRow.phase || !newRow.role) return;
@@ -395,7 +464,7 @@ function WBSTab() {
     setNewRow({ phase: '', activity: '', deliverable: '', role: '', complexity: 'Medium', effortDays: 1, dependency: '', acceptanceCriteria: '', includeInExport: true });
   };
 
-  const phases = ['Discovery', 'Design', 'Build', 'Test', 'Deploy', 'KT'];
+  const phases = ['Discovery', 'Design', 'Build', 'Test', 'Deploy', 'KT', 'Govern'];
   const roles = ['Business Analyst', 'Solution Architect', 'GenAI Architect', 'AI/ML Engineer', 'Backend Engineer', 'Data Engineer', 'Cloud Engineer', 'Frontend Engineer', 'QA Engineer', 'Q&T Engineer', 'Healthcare SME', 'Project Manager'];
 
   const duplicateRow = (row: WBSRow) => {
@@ -416,7 +485,7 @@ function WBSTab() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
             <div className="text-xs text-slate-500 dark:text-slate-400">Base calculation</div>
-            <div className="text-sm font-medium text-slate-800 dark:text-slate-100">Total effort days = sum of included WBS effort days</div>
+            <div className="text-sm font-medium text-slate-800 dark:text-slate-100">Total effort = included WBS effort days × hours per day</div>
           </div>
           <div className="md:col-span-2 space-y-1.5">
             <Label className="text-xs">Editable WBS effort formula / note</Label>
@@ -429,7 +498,7 @@ function WBSTab() {
         <div className="flex items-center gap-4 text-sm text-slate-500 dark:text-slate-400">
           <span>{wbs.length} activities</span>
           <span>•</span>
-          <span>{totalEffort} effort days (selected)</span>
+          <span>{totalEffort} effort days / {totalEffortHours} effort hours (selected)</span>
         </div>
         {isEditable && (
           <Button size="sm" onClick={() => setAdding(true)} className="bg-blue-600 hover:bg-blue-700 text-white gap-1.5">
@@ -448,7 +517,7 @@ function WBSTab() {
                 <th className="px-3 py-2.5 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide">Deliverable</th>
                 <th className="px-3 py-2.5 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide">Role</th>
                 <th className="px-3 py-2.5 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide whitespace-nowrap">Complexity</th>
-                <th className="px-3 py-2.5 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide whitespace-nowrap">Days</th>
+                <th className="px-3 py-2.5 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide whitespace-nowrap">Days / Hours</th>
                 <th className="px-3 py-2.5 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide whitespace-nowrap">Type</th>
                 <th className="px-3 py-2.5 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide whitespace-nowrap">Export</th>
                 {isEditable && <th className="px-3 py-2.5 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide">Actions</th>}
@@ -502,8 +571,16 @@ function WBSTab() {
                   </td>
                   <td className="px-3 py-2 text-sm font-medium text-slate-800 dark:text-slate-100 text-center">
                     {isEditable ? (
-                      <input type="number" min={0.5} step={0.5} value={row.effortDays} onChange={e => updateWBSRow(row.id, { effortDays: parseFloat(e.target.value) || 0 })} className="w-20 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-2 py-1 text-xs text-center" />
-                    ) : row.effortDays}
+                      <div className="space-y-1">
+                        <input type="number" min={0.5} step={0.5} value={row.effortDays} onChange={e => updateWBSRow(row.id, { effortDays: parseFloat(e.target.value) || 0 })} className="w-20 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-2 py-1 text-xs text-center" />
+                        <div className="text-[10px] text-slate-400">{row.effortDays * basis.hoursPerDay} hrs</div>
+                      </div>
+                    ) : (
+                      <div>
+                        <div>{row.effortDays}</div>
+                        <div className="text-[10px] text-slate-400">{row.effortDays * basis.hoursPerDay} hrs</div>
+                      </div>
+                    )}
                   </td>
                   <td className="px-3 py-2"><RowBadge type={row.rowType} /></td>
                   <td className="px-3 py-2">
@@ -561,8 +638,9 @@ function WBSTab() {
               </select>
             </div>
             <div className="space-y-1">
-              <Label className="text-xs">Effort Days *</Label>
+              <Label className="text-xs">Effort Days / Hours *</Label>
               <Input type="number" min={0.5} step={0.5} value={newRow.effortDays || ''} onChange={e => setNewRow(p => ({ ...p, effortDays: parseFloat(e.target.value) }))} />
+              <p className="text-[10px] text-slate-500 dark:text-slate-400">{newRow.effortDays ? `${newRow.effortDays * basis.hoursPerDay} effort hours` : 'Uses current hours/day basis'}</p>
             </div>
             <div className="space-y-1">
               <Label className="text-xs">Complexity</Label>
@@ -1236,11 +1314,200 @@ function RoiTab() {
   );
 }
 
+// ─── SECTION: DELIVERY & SUPPORT ─────────────────────────────────────────────
+function DeliveryTab() {
+  const { state, setDelivery } = useWorkbench();
+  const navigate = useNavigate();
+  const d = state.azure.delivery;
+  const intake = state.intake;
+
+  const pctSum = d.onshorePct + d.offshorePct + d.nearshorePct;
+
+  const field = (label: string, children: React.ReactNode) => (
+    <div className="space-y-1.5">
+      <Label className="text-sm">{label}</Label>
+      {children}
+    </div>
+  );
+
+  return (
+    <div className="space-y-5">
+      {/* Section 1 — Engagement Context (read-only) */}
+      <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5">
+        <h3 className="text-slate-800 dark:text-slate-100 mb-4">Engagement & Commercial Context</h3>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+          <div><div className="text-xs text-slate-500 dark:text-slate-400 mb-1">Engagement Type</div><div className="font-medium text-slate-800 dark:text-slate-100">{intake.engagementType || '—'}</div></div>
+          <div><div className="text-xs text-slate-500 dark:text-slate-400 mb-1">Commercial Model</div><div className="font-medium text-slate-800 dark:text-slate-100">{intake.commercialModel || '—'}</div></div>
+          <div><div className="text-xs text-slate-500 dark:text-slate-400 mb-1">Budget Indicator</div><div className="font-medium text-slate-800 dark:text-slate-100">{intake.budgetIndicator || '—'}</div></div>
+        </div>
+        {(!intake.engagementType || !intake.commercialModel) && (
+          <button onClick={() => navigate('/intake')} className="mt-3 text-xs text-blue-600 dark:text-blue-400 hover:underline">
+            Edit in Project Intake ↗
+          </button>
+        )}
+      </div>
+
+      {/* Section 2 — Team Structure */}
+      <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5">
+        <h3 className="text-slate-800 dark:text-slate-100 mb-4">Team Structure</h3>
+        <div className="space-y-4">
+          {field('Pod Composition',
+            <Textarea
+              value={d.podComposition}
+              onChange={e => setDelivery({ podComposition: e.target.value })}
+              placeholder="e.g. Solution Architect (0.5 FTE), GenAI Architect (1 FTE), AI/ML Engineer (2 FTE), QA Engineer (1 FTE)"
+              className="min-h-20"
+            />
+          )}
+          <div>
+            <Label className="text-sm mb-2 block">Onshore / Offshore / Nearshore %</Label>
+            <div className="grid grid-cols-3 gap-3">
+              {(['onshorePct', 'offshorePct', 'nearshorePct'] as const).map((key, i) => (
+                <div key={key} className="space-y-1">
+                  <Label className="text-xs text-slate-500 dark:text-slate-400">{['Onshore', 'Offshore', 'Nearshore'][i]}</Label>
+                  <Input type="number" min={0} max={100} value={d[key]} onChange={e => setDelivery({ [key]: parseInt(e.target.value) || 0 })} />
+                </div>
+              ))}
+            </div>
+            {pctSum !== 100 && (
+              <p className="text-xs text-amber-600 dark:text-amber-400 mt-1.5">Total = {pctSum}% — should sum to 100%</p>
+            )}
+          </div>
+          {field('Client-Side Resources Required',
+            <Textarea value={d.clientResources} onChange={e => setDelivery({ clientResources: e.target.value })} placeholder="e.g. Named SME reviewer, UAT test cases, EHR API access..." />
+          )}
+        </div>
+      </div>
+
+      {/* Section 3 — Delivery Model */}
+      <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5">
+        <h3 className="text-slate-800 dark:text-slate-100 mb-4">Delivery Model</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+          {field('Engagement Model',
+            <Select value={d.engagementModel} onValueChange={v => setDelivery({ engagementModel: v })}>
+              <SelectTrigger><SelectValue placeholder="Select model" /></SelectTrigger>
+              <SelectContent>
+                {['Agile Sprints', 'Waterfall', 'Agile-Waterfall Hybrid', 'Kanban / Continuous'].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          )}
+          {field('Phase Approach',
+            <Select value={d.phaseApproach} onValueChange={v => setDelivery({ phaseApproach: v })}>
+              <SelectTrigger><SelectValue placeholder="Select approach" /></SelectTrigger>
+              <SelectContent>
+                {['Single-Phase MVP', 'Phased Delivery (P0 PoC → P1 MVP → P2 Production)', 'Iterative Releases', 'Big Bang'].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          )}
+        </div>
+        <div className="mt-4 space-y-4">
+          {field('PoC / Phase 0 Scope (if applicable)',
+            <Textarea value={d.pocScope} onChange={e => setDelivery({ pocScope: e.target.value })} placeholder="Describe the PoC objectives, duration, and success criteria..." className="min-h-20" />
+          )}
+          {field('Key Milestones / Phase Gates',
+            <Textarea value={d.keyMilestones} onChange={e => setDelivery({ keyMilestones: e.target.value })} placeholder="e.g. Week 4: PoC sign-off; Week 12: MVP demo; Week 20: UAT complete..." />
+          )}
+        </div>
+      </div>
+
+      {/* Section 4 — Support Model */}
+      <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5">
+        <h3 className="text-slate-800 dark:text-slate-100 mb-4">Support & Managed Service</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+          {field('Hypercare Period',
+            <Select value={d.hypercareWeeks} onValueChange={v => setDelivery({ hypercareWeeks: v })}>
+              <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
+              <SelectContent>
+                {['None', '2 weeks', '4 weeks', '6 weeks', '8 weeks', 'Custom'].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          )}
+          {field('Support Model',
+            <Select value={d.supportModel} onValueChange={v => setDelivery({ supportModel: v })}>
+              <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
+              <SelectContent>
+                {['Client-operated (KT only)', 'Managed Service', 'Hybrid (shared ops)', 'None'].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          )}
+          {field('Support Tier',
+            <Select value={d.supportTier} onValueChange={v => setDelivery({ supportTier: v })}>
+              <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
+              <SelectContent>
+                {['L1 only', 'L1 + L2', 'L1 + L2 + L3', 'L3 escalation only'].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          )}
+          {field('SLA – Availability', <Input value={d.slaAvailability} onChange={e => setDelivery({ slaAvailability: e.target.value })} placeholder="99.5%" />)}
+          {field('SLA – Response Time', <Input value={d.slaResponseTime} onChange={e => setDelivery({ slaResponseTime: e.target.value })} placeholder="4 hours for P1" />)}
+          {field('Maintenance Window', <Input value={d.maintenanceWindow} onChange={e => setDelivery({ maintenanceWindow: e.target.value })} placeholder="Sundays 02:00–04:00 UTC" />)}
+        </div>
+      </div>
+
+      {/* Section 5 — Responsibilities */}
+      <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5">
+        <h3 className="text-slate-800 dark:text-slate-100 mb-4">Responsibilities (Simplified RACI)</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+          {field('Client Will Provide',
+            <Textarea
+              value={d.clientResponsibilities}
+              onChange={e => setDelivery({ clientResponsibilities: e.target.value })}
+              placeholder="e.g. Access to EHR system APIs, named SME reviewer, UAT test cases, HIPAA BAA, environment provisioning..."
+              className="min-h-32"
+            />
+          )}
+          {field('Practice Will Deliver',
+            <Textarea
+              value={d.practiceResponsibilities}
+              onChange={e => setDelivery({ practiceResponsibilities: e.target.value })}
+              placeholder="e.g. Architecture design, build, test, deployment, documentation, KT sessions, hypercare support..."
+              className="min-h-32"
+            />
+          )}
+        </div>
+      </div>
+
+      {/* Section 6 — Training & Change Management */}
+      <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5">
+        <h3 className="text-slate-800 dark:text-slate-100 mb-4">Training & Change Management</h3>
+        <div className="space-y-4">
+          <div className="flex items-center gap-4 p-4 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900">
+            <div className="flex-1">
+              <Label className="mb-0.5 block">Training Plan Required</Label>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Include a formal training programme in the SOW scope</p>
+            </div>
+            <Switch checked={d.trainingRequired} onCheckedChange={v => setDelivery({ trainingRequired: v })} />
+          </div>
+          {d.trainingRequired && field('Training Approach',
+            <Select value={d.trainingApproach} onValueChange={v => setDelivery({ trainingApproach: v })}>
+              <SelectTrigger><SelectValue placeholder="Select approach" /></SelectTrigger>
+              <SelectContent>
+                {['Self-service runbook', 'Live training sessions', 'Video walkthroughs', 'Embedded trainer', 'None'].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          )}
+          {field('Change Management Considerations',
+            <Textarea value={d.changeManagementNotes} onChange={e => setDelivery({ changeManagementNotes: e.target.value })} placeholder="Stakeholder engagement plan, comms strategy, adoption risks..." className="min-h-20" />
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── MAIN PAGE ────────────────────────────────────────────────────────────────
 export function AzureEstimationPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const { state, saveWorkspace, setValidationStatus } = useWorkbench();
-  const activeTab = searchParams.get('tab') || 'overview';
+  const activePhases = state.engagementConfig.activePhases;
+
+  const visibleTabs = TABS.filter(t => {
+    const phase = TAB_PHASE_MAP[t.id];
+    return !phase || activePhases.includes(phase);
+  });
+
+  const rawTab = searchParams.get('tab') || 'overview';
+  const activeTab = visibleTabs.find(t => t.id === rawTab) ? rawTab : (visibleTabs[0]?.id ?? 'overview');
 
   const setTab = (tab: string) => setSearchParams({ tab });
 
@@ -1270,9 +1537,10 @@ export function AzureEstimationPage() {
     assumptions: <AssumptionsTab />,
     risks: <RisksTab />,
     roi: <RoiTab />,
+    delivery: <DeliveryTab />,
   };
 
-  const currentTab = TABS.find(tab => tab.id === activeTab) || TABS[0];
+  const currentTab = visibleTabs.find(tab => tab.id === activeTab) || visibleTabs[0];
 
   return (
     <div className="flex flex-col min-h-full">
@@ -1299,7 +1567,7 @@ export function AzureEstimationPage() {
       {/* Tab nav */}
       <div className="overflow-x-auto">
         <div className="flex gap-1 min-w-max border-b border-slate-200 dark:border-slate-700">
-          {TABS.map(tab => {
+          {visibleTabs.map(tab => {
             const Icon = tab.icon;
             const active = activeTab === tab.id;
             return (

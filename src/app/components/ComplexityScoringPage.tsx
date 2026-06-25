@@ -2,7 +2,7 @@ import { useWorkbench } from './WorkbenchContext';
 import { AlertCircle, BarChart2 } from 'lucide-react';
 import { WorkflowNav } from './WorkflowNav';
 
-const dimensions = [
+export const dimensions = [
   { key: 'dataSources', label: 'Data Sources', desc: 'Number and diversity of data sources to be integrated' },
   { key: 'dataTypes', label: 'Data Types', desc: 'Variety of data formats (structured, unstructured, FHIR, images, etc.)' },
   { key: 'integrationDepth', label: 'Integration Depth', desc: 'Complexity of system integrations (API contracts, real-time vs. batch)' },
@@ -17,7 +17,7 @@ const dimensions = [
 
 type DimensionKey = typeof dimensions[number]['key'];
 
-const scoreLabels: Record<number, { label: string; color: string }> = {
+export const scoreLabels: Record<number, { label: string; color: string }> = {
   0: { label: 'Not scored', color: 'text-slate-400' },
   1: { label: 'Very Low', color: 'text-emerald-600' },
   2: { label: 'Low', color: 'text-blue-600' },
@@ -26,7 +26,7 @@ const scoreLabels: Record<number, { label: string; color: string }> = {
   5: { label: 'Very High', color: 'text-red-600' },
 };
 
-function getClassification(total: number) {
+export function getClassification(total: number) {
   if (total <= 15) return { label: 'Low Complexity', color: 'text-emerald-700', bg: 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800', delivery: 'Small team, agile sprints', team: '3–5 people', timeline: '8–12 weeks', risk: 'Low', multiplier: '1.0x' };
   if (total <= 28) return { label: 'Medium Complexity', color: 'text-blue-700', bg: 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800', delivery: 'Cross-functional team, structured delivery', team: '5–8 people', timeline: '12–20 weeks', risk: 'Medium', multiplier: '1.25x' };
   if (total <= 40) return { label: 'High Complexity', color: 'text-orange-700', bg: 'bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-800', delivery: 'Dedicated pod, formal governance', team: '8–12 people', timeline: '20–32 weeks', risk: 'High', multiplier: '1.5x' };

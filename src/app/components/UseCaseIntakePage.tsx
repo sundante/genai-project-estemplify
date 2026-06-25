@@ -18,7 +18,13 @@ const targetUserOptions = ['Business User', 'Claims Analyst', 'Nurse', 'Physicia
 const outcomeOptions = ['Reduce manual effort', 'Reduce turnaround time', 'Improve accuracy', 'Improve compliance', 'Improve user experience', 'Improve revenue cycle', 'Reduce cost', 'Improve quality metrics', 'Increase throughput', 'Reduce risk'];
 const dataTypeOptions = ['Structured Data', 'Unstructured Documents', 'PDFs', 'Scanned Documents', 'Clinical Notes', 'Claims Data', 'Contracts', 'Policies', 'Guidelines', 'Logs', 'Knowledge Base', 'Audio', 'Images', 'FHIR/HL7', 'SQL Tables'];
 const sourceSystemOptions = ['EHR System', 'Claims System', 'CRM', 'RIS/PACS', 'Document Repository', 'Knowledge Base', 'Data Warehouse', 'SQL Database', 'APIs', 'Cloud Storage', 'Workflow Tool'];
-const complianceOptions = ['Low', 'Moderate', 'High', 'HIPAA', 'GxP', 'FDA traceability', 'Audit-grade'];
+const complianceOptions = ['HIPAA', 'SOC 2 Type II', 'GDPR', 'HITRUST', 'FDA 21 CFR Part 11', 'FedRAMP', 'PCI-DSS'];
+const ehrSystems = ['Epic', 'Cerner / Oracle Health', 'Meditech', 'Athenahealth', 'Custom / Other', 'Not Applicable'];
+const fhirVersions = ['FHIR R4', 'FHIR R4B', 'FHIR DSTU2', 'Proprietary API', 'Not Applicable'];
+const fdaPathways = ['Not a medical device', 'Class I (exempt)', 'Class II (510k required)', 'Under Assessment', 'Not Applicable'];
+const engagementTypes = ['New Build', 'Enhancement / Extension', 'Advisory', 'PoC / Pilot', 'Managed Service'];
+const commercialModels = ['T&M', 'Fixed Price', 'Milestone-based', 'Managed Service', 'Hybrid T&M + Milestone'];
+const budgetIndicators = ['Under $250K', '$250K–$500K', '$500K–$1M', '$1M–$2M', '$2M+', 'TBD / Not Disclosed'];
 
 function SectionHeader({ title, complete }: { title: string; complete: boolean }) {
   return (
@@ -63,7 +69,7 @@ export function UseCaseIntakePage() {
     if (!intake.marketSegment) errs.marketSegment = 'Market segment is required';
     if (intake.businessProblem.trim().length < 30) errs.businessProblem = 'Business problem must be at least 30 characters';
     if (intake.dataTypes.length === 0) errs.dataTypes = 'Select at least one data type';
-    if (intake.phiPii && intake.compliance === 'Low') errs.compliance = 'PHI/PII is ON — compliance level cannot be Low';
+    if (intake.phiPii && intake.complianceFlags.length === 0) errs.compliance = 'Select at least one compliance framework for PHI/PII data';
     if (intake.opportunityStage === 'Production Planning') {
       // warn about governance
     }
@@ -88,7 +94,8 @@ export function UseCaseIntakePage() {
 
   const sectionAComplete = !!(intake.clientName && intake.opportunityName && intake.marketSegment && intake.opportunityStage);
   const sectionBComplete = !!(intake.businessProblem && intake.targetUsers.length > 0);
-  const sectionCComplete = !!(intake.dataTypes.length > 0 && intake.compliance);
+  const sectionCComplete = !!(intake.dataTypes.length > 0 && intake.complianceFlags.length > 0 && intake.ehrSystem && intake.fhirVersion && intake.fdaPathway);
+  const sectionDComplete = !!(intake.engagementType && intake.commercialModel);
 
   return (
     <div className="flex flex-col min-h-full">
@@ -96,8 +103,8 @@ export function UseCaseIntakePage() {
       {/* Page header */}
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-slate-900 dark:text-slate-100">Use-case Intake</h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Capture client context, business requirements, and data inputs for your estimation.</p>
+          <h1 className="text-slate-900 dark:text-slate-100">Project Intake</h1>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Capture client context, business requirements, data inputs, and commercial context for your engagement.</p>
         </div>
         <div className="flex items-center gap-2">
           {saved && (
@@ -272,30 +279,115 @@ export function UseCaseIntakePage() {
               <Switch
                 checked={intake.phiPii}
                 onCheckedChange={v => {
-                  setIntake({ phiPii: v });
-                  if (v && intake.compliance === 'Low') setErrors(p => ({ ...p, compliance: 'PHI/PII is ON — compliance level cannot be Low' }));
-                  else setErrors(p => ({ ...p, compliance: '' }));
+                  setIntake({ phiPii: v, clinicalValidationRequired: v ? intake.clinicalValidationRequired : false });
+                  setErrors(p => ({ ...p, compliance: '' }));
                 }}
               />
             </div>
 
             <div className="space-y-1.5">
-              <Label>Compliance Level <span className="text-red-500">*</span></Label>
-              <Select value={intake.compliance} onValueChange={v => { setIntake({ compliance: v }); if (errors.compliance) setErrors(p => ({ ...p, compliance: '' })); }}>
-                <SelectTrigger className={errors.compliance ? 'border-red-500' : ''}>
-                  <SelectValue placeholder="Select compliance level" />
-                </SelectTrigger>
-                <SelectContent>
-                  {complianceOptions.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-                </SelectContent>
-              </Select>
+              <Label>Compliance Frameworks <span className="text-red-500">*</span></Label>
+              <div className="flex flex-wrap gap-2">
+                {complianceOptions.map(flag => (
+                  <CheckChip
+                    key={flag}
+                    label={flag}
+                    selected={intake.complianceFlags.includes(flag)}
+                    onToggle={() => {
+                      toggle('complianceFlags', flag);
+                      if (errors.compliance) setErrors(p => ({ ...p, compliance: '' }));
+                    }}
+                  />
+                ))}
+              </div>
               {errors.compliance && <p className="text-xs text-red-500">{errors.compliance}</p>}
-              {intake.phiPii && intake.compliance && intake.compliance !== 'Low' && (
+              {intake.phiPii && intake.complianceFlags.length > 0 && (
                 <p className="text-xs text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
-                  <CheckCircle className="size-3" /> PHI/PII and compliance level are consistent
+                  <CheckCircle className="size-3" /> PHI/PII and compliance frameworks are captured
                 </p>
               )}
             </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+            <div className="space-y-1.5">
+              <Label>EHR System</Label>
+              <Select value={intake.ehrSystem} onValueChange={v => setIntake({ ehrSystem: v })}>
+                <SelectTrigger><SelectValue placeholder="Select EHR platform" /></SelectTrigger>
+                <SelectContent>
+                  {ehrSystems.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Integration Standard</Label>
+              <Select value={intake.fhirVersion} onValueChange={v => setIntake({ fhirVersion: v })}>
+                <SelectTrigger><SelectValue placeholder="Select integration standard" /></SelectTrigger>
+                <SelectContent>
+                  {fhirVersions.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label>FDA Regulatory Pathway</Label>
+              <Select value={intake.fdaPathway} onValueChange={v => setIntake({ fdaPathway: v })}>
+                <SelectTrigger><SelectValue placeholder="Select pathway" /></SelectTrigger>
+                <SelectContent>
+                  {fdaPathways.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className={`flex items-center gap-4 p-4 rounded-lg border border-slate-200 dark:border-slate-700 ${intake.phiPii ? 'bg-slate-50 dark:bg-slate-900' : 'bg-slate-50/60 dark:bg-slate-900/50 opacity-75'}`}>
+            <div className="flex-1">
+              <Label className="mb-0.5 block">Clinical Validation Required</Label>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                {intake.phiPii ? 'Enable when clinical SME validation is required before launch.' : 'Enable PHI/PII flag above to activate.'}
+              </p>
+            </div>
+            <Switch
+              checked={intake.clinicalValidationRequired}
+              disabled={!intake.phiPii}
+              onCheckedChange={v => setIntake({ clinicalValidationRequired: v })}
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Section D */}
+      <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6">
+        <SectionHeader title="D. Engagement & Commercial Context" complete={sectionDComplete} />
+        <p className="text-sm text-slate-500 dark:text-slate-400 mb-5">
+          This context drives the Delivery & Support tab and helps frame the commercial proposal.
+        </p>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+          <div className="space-y-1.5">
+            <Label>Engagement Type</Label>
+            <Select value={intake.engagementType} onValueChange={v => setIntake({ engagementType: v })}>
+              <SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger>
+              <SelectContent>
+                {engagementTypes.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label>Commercial Model</Label>
+            <Select value={intake.commercialModel} onValueChange={v => setIntake({ commercialModel: v })}>
+              <SelectTrigger><SelectValue placeholder="Select model" /></SelectTrigger>
+              <SelectContent>
+                {commercialModels.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label>Budget Indicator</Label>
+            <Select value={intake.budgetIndicator} onValueChange={v => setIntake({ budgetIndicator: v })}>
+              <SelectTrigger><SelectValue placeholder="Select range" /></SelectTrigger>
+              <SelectContent>
+                {budgetIndicators.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+              </SelectContent>
+            </Select>
           </div>
         </div>
       </div>
@@ -311,6 +403,10 @@ export function UseCaseIntakePage() {
             <div><div className="text-blue-600 dark:text-blue-400 text-xs mb-0.5">Segment</div><div className="text-slate-800 dark:text-slate-100 font-medium">{intake.marketSegment || '—'}</div></div>
             <div><div className="text-blue-600 dark:text-blue-400 text-xs mb-0.5">Data Types</div><div className="text-slate-800 dark:text-slate-100 font-medium">{intake.dataTypes.length} selected</div></div>
             <div><div className="text-blue-600 dark:text-blue-400 text-xs mb-0.5">PHI/PII</div><div className={`font-medium ${intake.phiPii ? 'text-amber-600 dark:text-amber-400' : 'text-slate-800 dark:text-slate-100'}`}>{intake.phiPii ? 'Yes' : 'No'}</div></div>
+            <div><div className="text-blue-600 dark:text-blue-400 text-xs mb-0.5">Compliance</div><div className="text-slate-800 dark:text-slate-100 font-medium">{intake.complianceFlags.length} selected</div></div>
+            <div><div className="text-blue-600 dark:text-blue-400 text-xs mb-0.5">EHR</div><div className="text-slate-800 dark:text-slate-100 font-medium">{intake.ehrSystem || '—'}</div></div>
+            <div><div className="text-blue-600 dark:text-blue-400 text-xs mb-0.5">FHIR/API</div><div className="text-slate-800 dark:text-slate-100 font-medium">{intake.fhirVersion || '—'}</div></div>
+            <div><div className="text-blue-600 dark:text-blue-400 text-xs mb-0.5">Clinical Validation</div><div className="text-slate-800 dark:text-slate-100 font-medium">{intake.clinicalValidationRequired ? 'Required' : 'Not required'}</div></div>
           </div>
         </div>
       )}

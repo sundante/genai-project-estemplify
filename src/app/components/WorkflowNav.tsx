@@ -12,7 +12,7 @@ import {
 } from './ui/dialog';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import { useWorkbench } from './WorkbenchContext';
-import { WORKFLOW_STEPS, getStepForPath } from '../workflow';
+import { getActiveSteps, getStepForPath } from '../workflow';
 
 interface WorkflowNavProps {
   onNext?: () => Promise<boolean> | boolean;
@@ -38,9 +38,10 @@ export function WorkflowNav({
   const currentStep = getStepForPath(location.pathname, location.search);
   if (!currentStep) return null;
 
-  const currentIndex = WORKFLOW_STEPS.findIndex(s => s.n === currentStep.n);
-  const prevStep = currentIndex > 0 ? WORKFLOW_STEPS[currentIndex - 1] : undefined;
-  const nextStep = currentIndex < WORKFLOW_STEPS.length - 1 ? WORKFLOW_STEPS[currentIndex + 1] : undefined;
+  const activeSteps = getActiveSteps(state.engagementConfig.activePhases);
+  const currentIndex = activeSteps.findIndex(s => s.id === currentStep.id);
+  const prevStep = currentIndex > 0 ? activeSteps[currentIndex - 1] : undefined;
+  const nextStep = currentIndex < activeSteps.length - 1 ? activeSteps[currentIndex + 1] : undefined;
 
   const handleBack = () => {
     if (!prevStep) return;
@@ -83,7 +84,7 @@ export function WorkflowNav({
         </div>
 
         <span className="text-xs text-slate-400 dark:text-slate-500 hidden sm:block">
-          Step {currentStep.n} of {WORKFLOW_STEPS.length}
+          Step {currentIndex + 1} of {activeSteps.length}
         </span>
 
         <div>

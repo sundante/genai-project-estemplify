@@ -15,7 +15,7 @@ import {
 
 export { isDocxAvailable, isPdfAvailable, isXlsxAvailable };
 
-const sections: SectionName[] = ['overview', 'components', 'agents', 'wbs', 'resources', 'infra', 'roi', 'assumptions', 'risks'];
+const sections: SectionName[] = ['overview', 'components', 'agents', 'wbs', 'resources', 'infra', 'roi', 'assumptions', 'risks', 'delivery'];
 
 function safe(value: unknown) {
   return value === undefined || value === null || value === '' ? '-' : String(value);

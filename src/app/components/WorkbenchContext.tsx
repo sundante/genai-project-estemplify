@@ -61,6 +61,34 @@ export interface RiskRow {
   includeInExport: boolean;
 }
 
+export interface EngagementConfig {
+  activePhases: string[];
+  preset: string;
+}
+
+export interface DeliveryState {
+  podComposition: string;
+  onshorePct: number;
+  offshorePct: number;
+  nearshorePct: number;
+  clientResources: string;
+  engagementModel: string;
+  phaseApproach: string;
+  pocScope: string;
+  keyMilestones: string;
+  hypercareWeeks: string;
+  supportModel: string;
+  supportTier: string;
+  slaAvailability: string;
+  slaResponseTime: string;
+  maintenanceWindow: string;
+  clientResponsibilities: string;
+  practiceResponsibilities: string;
+  trainingRequired: boolean;
+  trainingApproach: string;
+  changeManagementNotes: string;
+}
+
 export interface InfraInputs {
   monthlyUsers: number;
   concurrentUsers: number;
@@ -95,7 +123,14 @@ export interface IntakeData {
   dataTypes: string[];
   sourceSystems: string[];
   phiPii: boolean;
-  compliance: string;
+  complianceFlags: string[];
+  ehrSystem: string;
+  fhirVersion: string;
+  fdaPathway: string;
+  clinicalValidationRequired: boolean;
+  engagementType: string;
+  commercialModel: string;
+  budgetIndicator: string;
 }
 
 export interface ComplexityScores {
@@ -116,6 +151,7 @@ export interface AzureOverview {
   cloudProvider: string;
   solutionType: string;
   businessGoal: string;
+  executiveSummary: string;
 }
 
 export interface RoiInputs {
@@ -171,6 +207,7 @@ export interface WorkbenchState {
   intake: IntakeData;
   classification: ClassificationState;
   complexity: ComplexityScores;
+  engagementConfig: EngagementConfig;
   azure: {
     mode: 'master' | 'working-copy';
     overview: AzureOverview;
@@ -183,6 +220,7 @@ export interface WorkbenchState {
     assumptions: AssumptionRow[];
     dependencies: DependencyRow[];
     risks: RiskRow[];
+    delivery: DeliveryState;
     unsavedChanges: boolean;
   };
   validationStatus: 'draft' | 'validated' | 'ready-to-export';
@@ -209,6 +247,14 @@ const defaultWBS: WBSRow[] = [
   { id: 'w18', phase: 'Test', activity: 'UAT support', deliverable: 'UAT Sign-off Document', role: 'Business Analyst', complexity: 'Medium', effortDays: 5, dependency: 'w17', acceptanceCriteria: 'UAT sign-off obtained', rowType: 'master', includeInExport: true },
   { id: 'w19', phase: 'Deploy', activity: 'Deployment', deliverable: 'Production Deployment Record', role: 'Cloud Engineer', complexity: 'High', effortDays: 3, dependency: 'w18', acceptanceCriteria: 'System live in production', rowType: 'master', includeInExport: true },
   { id: 'w20', phase: 'KT', activity: 'Knowledge transfer', deliverable: 'KT Documentation & Runbook', role: 'Solution Architect', complexity: 'Low', effortDays: 3, dependency: 'w19', acceptanceCriteria: 'KT sessions completed', rowType: 'master', includeInExport: true },
+  { id: 'w21', phase: 'Build', activity: 'PHI de-identification pipeline', deliverable: 'PHI De-identification Pipeline', role: 'Data Engineer', complexity: 'High', effortDays: 5, dependency: 'w14', acceptanceCriteria: '40 effort hours / 5 effort days; Safe Harbor de-identification validated on sample dataset', rowType: 'master', includeInExport: false },
+  { id: 'w22', phase: 'Build', activity: 'FHIR R4 / EHR API integration layer', deliverable: 'FHIR Adapter & EHR Integration Layer', role: 'Backend Engineer', complexity: 'High', effortDays: 7.5, dependency: 'w16', acceptanceCriteria: '60 effort hours / 7.5 effort days; sandbox API integration passes end-to-end tests', rowType: 'master', includeInExport: false },
+  { id: 'w23', phase: 'Build', activity: 'Audit logging and PHI access trail', deliverable: 'PHI Access Audit Trail', role: 'Cloud Engineer', complexity: 'Medium', effortDays: 3, dependency: 'w14', acceptanceCriteria: '24 effort hours / 3 effort days; PHI access events are logged with immutable traceability', rowType: 'master', includeInExport: false },
+  { id: 'w24', phase: 'Build', activity: 'Clinical validation dataset preparation', deliverable: 'Clinical Validation Dataset', role: 'Data Engineer', complexity: 'Medium', effortDays: 4, dependency: 'w3', acceptanceCriteria: '32 effort hours / 4 effort days; validation dataset is de-identified and approved by clinical SME', rowType: 'master', includeInExport: false },
+  { id: 'w25', phase: 'Test', activity: 'Clinical validation study (accuracy vs. gold standard)', deliverable: 'Clinical Validation Study Report', role: 'Healthcare SME', complexity: 'High', effortDays: 5, dependency: 'w24', acceptanceCriteria: '40 effort hours / 5 effort days; accuracy validated against approved gold standard', rowType: 'master', includeInExport: false },
+  { id: 'w26', phase: 'Test', activity: 'Bias and fairness testing (demographic parity)', deliverable: 'Bias & Fairness Test Report', role: 'Q&T Engineer', complexity: 'High', effortDays: 3, dependency: 'w25', acceptanceCriteria: '24 effort hours / 3 effort days; demographic parity findings reviewed with clinical leadership', rowType: 'master', includeInExport: false },
+  { id: 'w27', phase: 'Deploy', activity: 'Model drift monitoring setup', deliverable: 'Model Drift Monitoring Dashboard', role: 'Cloud Engineer', complexity: 'Medium', effortDays: 2.5, dependency: 'w19', acceptanceCriteria: '20 effort hours / 2.5 effort days; drift alerts configured for production monitoring', rowType: 'master', includeInExport: false },
+  { id: 'w28', phase: 'Govern', activity: 'Responsible AI review and documentation', deliverable: 'Responsible AI Review Pack', role: 'Solution Architect', complexity: 'Medium', effortDays: 2, dependency: 'w26', acceptanceCriteria: '16 effort hours / 2 effort days; Responsible AI review pack approved for SOW appendix', rowType: 'master', includeInExport: false },
 ];
 
 const defaultResources: ResourceRow[] = [
@@ -236,6 +282,12 @@ const defaultAssumptions: AssumptionRow[] = [
   { id: 'a7', category: 'Model Performance', description: 'Azure OpenAI GPT-4 class models will meet baseline accuracy thresholds for clinical reasoning tasks', owner: 'Delivery Team', impact: 'High', rowType: 'master', includeInExport: true },
   { id: 'a8', category: 'Production Readiness', description: 'Client infrastructure and operational teams will be ready to support production deployment within the agreed timeline', owner: 'Client', impact: 'Medium', rowType: 'master', includeInExport: true },
   { id: 'a9', category: 'Cost Estimate', description: 'Token cost and infrastructure cost estimates are indicative and based on projected usage; actual costs may vary', owner: 'Delivery Team', impact: 'Medium', rowType: 'master', includeInExport: true },
+  { id: 'a10', category: 'Compliance', description: 'HIPAA BAA is signed with all vendors (Azure, OpenAI, vector DB provider) before project kickoff', owner: 'Client + Legal', impact: 'High', rowType: 'master', includeInExport: false },
+  { id: 'a11', category: 'Clinical', description: 'A named clinical champion with allocated time for UAT review and sign-off is identified at project start', owner: 'Client Clinical Leadership', impact: 'High', rowType: 'master', includeInExport: false },
+  { id: 'a12', category: 'Data', description: 'EHR API credentials and sandbox access are available at project kickoff, not gated on a separate procurement cycle', owner: 'Client IT', impact: 'High', rowType: 'master', includeInExport: false },
+  { id: 'a13', category: 'Regulatory', description: 'FDA has confirmed this use case does not constitute a Class II medical device requiring 510k clearance', owner: 'Client + Legal', impact: 'High', rowType: 'master', includeInExport: false },
+  { id: 'a14', category: 'Data', description: 'Training and test datasets are de-identified to HIPAA Safe Harbor standard before handover to the delivery team', owner: 'Client Data Team', impact: 'High', rowType: 'master', includeInExport: false },
+  { id: 'a15', category: 'Clinical', description: 'Clinical SME review cycles are time-boxed to 5 business days to prevent timeline slippage', owner: 'Client Clinical Team', impact: 'Medium', rowType: 'master', includeInExport: false },
 ];
 
 const defaultDependencies: DependencyRow[] = [
@@ -259,6 +311,11 @@ const defaultRisks: RiskRow[] = [
   { id: 'risk6', riskId: 'R-06', description: 'SME availability may impact clinical validation and approval timelines', probability: 'High', impact: 'Medium', mitigation: 'Schedule SME sessions upfront; identify backup reviewers', owner: 'Project Manager', rowType: 'master', includeInExport: true },
   { id: 'risk7', riskId: 'R-07', description: 'Hallucination and incorrect recommendations require robust Q&T and HITL controls', probability: 'High', impact: 'High', mitigation: 'Implement multi-layer evaluation; require HITL review for all low-confidence outputs', owner: 'Q&T Engineer', rowType: 'master', includeInExport: true },
   { id: 'risk8', riskId: 'R-08', description: 'Scope creep may occur if production integrations expand beyond initial agreement', probability: 'Medium', impact: 'High', mitigation: 'Maintain clear scope document; use change control process for scope additions', owner: 'Project Manager', rowType: 'master', includeInExport: true },
+  { id: 'risk9', riskId: 'R-09', description: 'FDA pathway determination classifies the solution as a Class II medical device, converting a 3-month build into an 18-month regulated product program', probability: 'Low', impact: 'Critical', mitigation: 'Complete FDA pathway assessment in Discovery; pause build if classification is uncertain', owner: 'Client + Legal', rowType: 'master', includeInExport: false },
+  { id: 'risk10', riskId: 'R-10', description: 'EHR vendor API changes or rate-limit policy updates break the integration mid-project', probability: 'Medium', impact: 'High', mitigation: 'Abstract behind FHIR R4 adapter layer; document rollback and manual fallback plan', owner: 'Backend Engineer', rowType: 'master', includeInExport: false },
+  { id: 'risk11', riskId: 'R-11', description: 'Clinical validation study reveals AI accuracy below clinical acceptance threshold, requiring model rework', probability: 'Medium', impact: 'High', mitigation: 'Define acceptance threshold in PoC success criteria; gate P1 MVP entry on PoC validation pass', owner: 'Healthcare SME', rowType: 'master', includeInExport: false },
+  { id: 'risk12', riskId: 'R-12', description: 'PHI inadvertently logged in LLM prompt or response traces, creating a HIPAA breach risk in dev/test environments', probability: 'Medium', impact: 'Critical', mitigation: 'Implement PHI scrubbing middleware before data reaches the LLM; enforce in CI pipeline', owner: 'Cloud Engineer', rowType: 'master', includeInExport: false },
+  { id: 'risk13', riskId: 'R-13', description: 'Low physician adoption post-go-live due to workflow friction, resulting in projected ROI not being realised', probability: 'High', impact: 'High', mitigation: 'Embed clinical workflow assessment in Discovery; involve clinical champion in UX walkthroughs during Build', owner: 'Project Manager', rowType: 'master', includeInExport: false },
 ];
 
 const defaultClassificationPatterns: ClassificationPattern[] = [
@@ -441,7 +498,18 @@ const defaultState: WorkbenchState = {
     dataTypes: [],
     sourceSystems: [],
     phiPii: false,
-    compliance: '',
+    complianceFlags: [],
+    ehrSystem: '',
+    fhirVersion: '',
+    fdaPathway: '',
+    clinicalValidationRequired: false,
+    engagementType: '',
+    commercialModel: '',
+    budgetIndicator: '',
+  },
+  engagementConfig: {
+    activePhases: ['intake', 'solution-id', 'hld', 'estimation', 'delivery', 'roi', 'risk-register', 'export'],
+    preset: 'Full SOW Build',
   },
   classification: { selectedPattern: '', patterns: defaultClassificationPatterns },
   complexity: {
@@ -463,6 +531,7 @@ const defaultState: WorkbenchState = {
       cloudProvider: 'Azure',
       solutionType: 'Agentic Workflow + RAG + HITL + Q&T',
       businessGoal: 'Automate and accelerate Prior Authorization review using agentic AI to reduce turnaround time, improve accuracy, and ensure compliance with clinical guidelines.',
+      executiveSummary: '',
     },
     selectedComponents: ['azure-openai', 'azure-search', 'azure-doc-intelligence', 'azure-functions', 'azure-app-service', 'azure-api-management', 'azure-blob-storage', 'azure-cosmos-db', 'azure-key-vault', 'azure-entra', 'azure-monitor', 'azure-devops'],
     wbs: defaultWBS,
@@ -509,6 +578,28 @@ const defaultState: WorkbenchState = {
     assumptions: defaultAssumptions,
     dependencies: defaultDependencies,
     risks: defaultRisks,
+    delivery: {
+      podComposition: '',
+      onshorePct: 100,
+      offshorePct: 0,
+      nearshorePct: 0,
+      clientResources: '',
+      engagementModel: '',
+      phaseApproach: '',
+      pocScope: '',
+      keyMilestones: '',
+      hypercareWeeks: '',
+      supportModel: '',
+      supportTier: '',
+      slaAvailability: '',
+      slaResponseTime: '',
+      maintenanceWindow: '',
+      clientResponsibilities: '',
+      practiceResponsibilities: '',
+      trainingRequired: false,
+      trainingApproach: '',
+      changeManagementNotes: '',
+    },
     unsavedChanges: false,
   },
   validationStatus: 'draft',
@@ -538,6 +629,8 @@ interface WorkbenchContextValue {
   setInfra: (data: Partial<InfraInputs>) => void;
   setRoi: (data: Partial<RoiInputs>) => void;
   setEstimationBasis: (data: Partial<EstimationBasis>) => void;
+  setDelivery: (data: Partial<DeliveryState>) => void;
+  setEngagementConfig: (config: Partial<EngagementConfig>) => void;
   addAssumption: (row: AssumptionRow) => void;
   updateAssumption: (id: string, data: Partial<AssumptionRow>) => void;
   deleteAssumption: (id: string) => void;
@@ -561,29 +654,48 @@ export const STORAGE_KEY = 'genai_sow_estimation_workspace_v1';
 const LEGACY_STORAGE_KEY = 'genforge_workspace';
 const DARK_MODE_KEY = 'genforge_dark_mode';
 
+function appendMissingDefaults<T extends { id: string }>(rows: T[] | undefined, defaults: T[]) {
+  const existing = Array.isArray(rows) ? rows : defaults;
+  return [
+    ...existing,
+    ...defaults.filter(row => !existing.some(existingRow => existingRow.id === row.id)),
+  ];
+}
+
 function loadFromStorage(): WorkbenchState {
   try {
     const raw = localStorage.getItem(STORAGE_KEY) || localStorage.getItem(LEGACY_STORAGE_KEY);
     const darkMode = localStorage.getItem(DARK_MODE_KEY) === 'true';
     if (raw) {
       const parsed = JSON.parse(raw);
+      const parsedIntake = parsed.intake || {};
+      const complianceFlags = Array.isArray(parsedIntake.complianceFlags)
+        ? parsedIntake.complianceFlags
+        : parsedIntake.compliance
+          ? [parsedIntake.compliance]
+          : defaultState.intake.complianceFlags;
       return {
         ...defaultState,
         ...parsed,
-        intake: { ...defaultState.intake, ...parsed.intake },
+        intake: { ...defaultState.intake, ...parsedIntake, complianceFlags },
         classification: {
           ...defaultState.classification,
           ...parsed.classification,
           patterns: parsed.classification?.patterns?.length ? parsed.classification.patterns : defaultClassificationPatterns,
         },
         complexity: { ...defaultState.complexity, ...parsed.complexity },
+        engagementConfig: { ...defaultState.engagementConfig, ...parsed.engagementConfig },
         azure: {
           ...defaultState.azure,
           ...parsed.azure,
           overview: { ...defaultState.azure.overview, ...parsed.azure?.overview },
+          wbs: appendMissingDefaults(parsed.azure?.wbs, defaultWBS),
+          assumptions: appendMissingDefaults(parsed.azure?.assumptions, defaultAssumptions),
+          risks: appendMissingDefaults(parsed.azure?.risks, defaultRisks),
           infra: { ...defaultState.azure.infra, ...parsed.azure?.infra },
           roi: { ...defaultState.azure.roi, ...parsed.azure?.roi },
           estimationBasis: { ...defaultState.azure.estimationBasis, ...parsed.azure?.estimationBasis },
+          delivery: { ...defaultState.azure.delivery, ...parsed.azure?.delivery },
         },
         darkMode,
       };
@@ -680,6 +792,12 @@ export function WorkbenchProvider({ children }: { children: React.ReactNode }) {
   const setEstimationBasis = (data: Partial<EstimationBasis>) =>
     update(s => ({ ...s, azure: { ...s.azure, estimationBasis: { ...s.azure.estimationBasis, ...data }, unsavedChanges: true } }));
 
+  const setDelivery = useCallback((data: Partial<DeliveryState>) =>
+    update(s => ({ ...s, azure: { ...s.azure, delivery: { ...s.azure.delivery, ...data }, unsavedChanges: true } })), [update]);
+
+  const setEngagementConfig = useCallback((config: Partial<EngagementConfig>) =>
+    update(s => ({ ...s, engagementConfig: { ...s.engagementConfig, ...config } })), [update]);
+
   const addAssumption = (row: AssumptionRow) => update(s => ({ ...s, azure: { ...s.azure, assumptions: [...s.azure.assumptions, row], unsavedChanges: true } }));
   const updateAssumption = (id: string, data: Partial<AssumptionRow>) => update(s => ({ ...s, azure: { ...s.azure, assumptions: s.azure.assumptions.map(r => r.id === id ? { ...r, ...data } : r), unsavedChanges: true } }));
   const deleteAssumption = (id: string) => update(s => ({ ...s, azure: { ...s.azure, assumptions: s.azure.assumptions.filter(r => r.id !== id || r.rowType === 'master'), unsavedChanges: true } }));
@@ -711,6 +829,10 @@ export function WorkbenchProvider({ children }: { children: React.ReactNode }) {
     setState({
       ...defaultState,
       darkMode: state.darkMode,
+      engagementConfig: {
+        activePhases: ['intake', 'solution-id', 'hld', 'estimation', 'delivery', 'roi', 'risk-register', 'export'],
+        preset: 'Full SOW Build',
+      },
       intake: {
         ...defaultState.intake,
         clientName: 'DemoClient',
@@ -727,7 +849,14 @@ export function WorkbenchProvider({ children }: { children: React.ReactNode }) {
         dataTypes: ['PDFs', 'Scanned Documents', 'Clinical Notes', 'Policies', 'Guidelines', 'FHIR/HL7'],
         sourceSystems: ['EHR System', 'Claims System', 'Document Repository'],
         phiPii: true,
-        compliance: 'HIPAA',
+        complianceFlags: ['HIPAA', 'SOC 2 Type II'],
+        ehrSystem: 'Epic',
+        fhirVersion: 'FHIR R4',
+        fdaPathway: 'Not a medical device',
+        clinicalValidationRequired: true,
+        engagementType: 'New Build',
+        commercialModel: 'T&M',
+        budgetIndicator: '$500K–$1M',
       },
       classification: { selectedPattern: 'agentic-workflow', patterns: defaultClassificationPatterns },
       complexity: {
@@ -748,6 +877,7 @@ export function WorkbenchProvider({ children }: { children: React.ReactNode }) {
         overview: {
           ...defaultState.azure.overview,
           useCaseName: 'Agentic AI Prior Authorization Assist',
+          executiveSummary: 'Internal AI Practice proposes an Agentic AI Prior Authorization workflow leveraging Azure OpenAI and Azure AI Search to reduce PA turnaround time by 85% while maintaining HIPAA compliance and full audit traceability.',
         },
         roi: {
           ...defaultState.azure.roi,
@@ -758,6 +888,23 @@ export function WorkbenchProvider({ children }: { children: React.ReactNode }) {
           projectedEffortReductionPct: 70,
           projectedErrorReductionPct: 80,
           projectedTurnaroundReductionPct: 85,
+        },
+        delivery: {
+          ...defaultState.azure.delivery,
+          podComposition: 'Solution Architect (0.5 FTE), GenAI Architect (1 FTE), AI/ML Engineer (2 FTE), QA Engineer (1 FTE)',
+          onshorePct: 60,
+          offshorePct: 40,
+          nearshorePct: 0,
+          engagementModel: 'Agile Sprints',
+          phaseApproach: 'Phased Delivery (P0 PoC → P1 MVP → P2 Production)',
+          pocScope: '4-week PoC to validate RAG retrieval accuracy and HITL workflow integration before committing to full build.',
+          hypercareWeeks: '4 weeks',
+          supportModel: 'Hybrid (shared ops)',
+          supportTier: 'L1 + L2',
+          slaAvailability: '99.5%',
+          slaResponseTime: '4 hours for P1 incidents',
+          trainingRequired: true,
+          trainingApproach: 'Live sessions',
         },
       },
     });
@@ -774,7 +921,7 @@ export function WorkbenchProvider({ children }: { children: React.ReactNode }) {
       setAzureMode, setAzureOverview, toggleAzureComponent,
       setWBS, addWBSRow, deleteWBSRow, updateWBSRow,
       setResources, addResourceRow, deleteResourceRow, updateResourceRow,
-      setInfra, setRoi, setEstimationBasis,
+      setInfra, setRoi, setEstimationBasis, setDelivery, setEngagementConfig,
       addAssumption, updateAssumption, deleteAssumption,
       addDependency, updateDependency, deleteDependency,
       addRisk, updateRisk, deleteRisk,

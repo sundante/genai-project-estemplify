@@ -29,7 +29,8 @@ export type SectionName =
   | 'infra'
   | 'assumptions'
   | 'risks'
-  | 'roi';
+  | 'roi'
+  | 'delivery';
 
 const appName = 'GenAI Proposal & SOW Estimation Workbench';
 
@@ -85,6 +86,28 @@ export function monthlyRunCost(state: WorkbenchState) {
   return (inputTokens / 1000) * input + (outputTokens / 1000) * output + ocrPages * ocr + storageGB * storage;
 }
 
+function parseRate(value: string, fallback = 0) {
+  const parsed = parseFloat(String(value || '').replace(/[^0-9.]/g, ''));
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function resourceBuildCost(state: WorkbenchState) {
+  const basis = state.azure.estimationBasis;
+  return state.azure.resources
+    .filter(row => row.includeInExport)
+    .reduce((sum, row) => sum + row.effortDays * basis.hoursPerDay * parseRate(row.ratePlaceholder, basis.defaultHourlyRate), 0);
+}
+
+function includedResourceEffort(state: WorkbenchState) {
+  const effortDays = state.azure.resources
+    .filter(row => row.includeInExport)
+    .reduce((sum, row) => sum + row.effortDays, 0);
+  return {
+    effortDays,
+    effortHours: effortDays * state.azure.estimationBasis.hoursPerDay,
+  };
+}
+
 function safe(value: unknown) {
   return value === undefined || value === null || value === '' ? '-' : String(value);
 }
@@ -108,6 +131,10 @@ export function sectionTable(section: SectionName, state: WorkbenchState): { tit
   const { azure, intake, classification, complexity } = state;
   const selectedComponents = new Set(azure.selectedComponents);
   const selectedPatternName = classification.patterns.find(pattern => pattern.id === classification.selectedPattern)?.name || classification.selectedPattern;
+  const buildCost = resourceBuildCost(state);
+  const monthlyRun = monthlyRunCost(state) || 0;
+  const tco12 = buildCost + monthlyRun * 12;
+  const effort = includedResourceEffort(state);
 
   if (section === 'overview') {
     return {
@@ -120,12 +147,22 @@ export function sectionTable(section: SectionName, state: WorkbenchState): { tit
         ['Market Segment', intake.marketSegment],
         ['Business Function', intake.businessFunction],
         ['Delivery Type', intake.targetDeliveryType],
+        ['Compliance Frameworks', intake.complianceFlags?.join(', ') || '—'],
+        ['EHR System', intake.ehrSystem || '—'],
+        ['Integration Standard', intake.fhirVersion || '—'],
+        ['FDA Regulatory Pathway', intake.fdaPathway || '—'],
+        ['Clinical Validation Required', intake.clinicalValidationRequired ? 'Yes' : 'No'],
         ['Solution Pattern', selectedPatternName],
         ['Business Problem', intake.businessProblem],
         ['Current Process', intake.currentProcess],
         ['Desired Future State', intake.desiredFutureState],
         ['Business Goal', azure.overview.businessGoal],
+        ['Win Theme / Executive Summary', azure.overview.executiveSummary || '—'],
         ['Complexity Scores', Object.values(complexity).join(', ')],
+        ['Included Resource Effort', effort.effortDays > 0 ? `${effort.effortDays} days / ${effort.effortHours} hours` : '—'],
+        ['Estimated Build Cost (Labour)', buildCost > 0 ? `$${buildCost.toLocaleString(undefined, { maximumFractionDigits: 0 })}` : '—'],
+        ['Estimated Monthly Run Cost (Infra)', monthlyRun > 0 ? `$${monthlyRun.toLocaleString(undefined, { maximumFractionDigits: 0 })}` : '—'],
+        ['12-Month Total Cost of Ownership', tco12 > 0 ? `$${tco12.toLocaleString(undefined, { maximumFractionDigits: 0 })}` : '—'],
       ],
     };
   }
@@ -143,17 +180,13 @@ export function sectionTable(section: SectionName, state: WorkbenchState): { tit
   if (section === 'wbs') {
     return {
       title: 'WBS',
-      headers: ['Phase', 'Activity', 'Deliverable', 'Role', 'Complexity', 'Effort Days', 'Dependency', 'Acceptance Criteria', 'Row Type'],
-      rows: azure.wbs.filter(r => r.includeInExport).map(r => [r.phase, r.activity, r.deliverable, r.role, r.complexity, r.effortDays, r.dependency, r.acceptanceCriteria, r.rowType]),
+      headers: ['Phase', 'Activity', 'Deliverable', 'Role', 'Complexity', 'Effort Days', 'Effort Hours', 'Dependency', 'Acceptance Criteria', 'Row Type'],
+      rows: azure.wbs.filter(r => r.includeInExport).map(r => [r.phase, r.activity, r.deliverable, r.role, r.complexity, r.effortDays, r.effortDays * azure.estimationBasis.hoursPerDay, r.dependency, r.acceptanceCriteria, r.rowType]),
     };
   }
 
   if (section === 'resources') {
     const basis = azure.estimationBasis;
-    const parseRate = (value: string) => {
-      const parsed = parseFloat(String(value || '').replace(/[^0-9.]/g, ''));
-      return Number.isFinite(parsed) ? parsed : basis.defaultHourlyRate;
-    };
     return {
       title: 'Resource Loading',
       headers: ['Role', 'Phase', 'Allocation %', 'Duration Weeks', 'Effort Days', 'Rate', 'Cost'],
@@ -209,6 +242,37 @@ export function sectionTable(section: SectionName, state: WorkbenchState): { tit
       title: 'Risks',
       headers: ['Risk ID', 'Description', 'Probability', 'Impact', 'Mitigation', 'Owner'],
       rows: azure.risks.filter(r => r.includeInExport).map(r => [r.riskId, r.description, r.probability, r.impact, r.mitigation, r.owner]),
+    };
+  }
+
+  if (section === 'delivery') {
+    const d = azure.delivery;
+    return {
+      title: 'Delivery & Support Considerations',
+      headers: ['Field', 'Value'],
+      rows: [
+        ['Engagement Type', intake.engagementType || '—'],
+        ['Commercial Model', intake.commercialModel || '—'],
+        ['Budget Indicator', intake.budgetIndicator || '—'],
+        ['Pod Composition', d.podComposition || '—'],
+        ['Onshore / Offshore / Nearshore', `${d.onshorePct}% / ${d.offshorePct}% / ${d.nearshorePct}%`],
+        ['Client Resources Required', d.clientResources || '—'],
+        ['Engagement Model', d.engagementModel || '—'],
+        ['Phase Approach', d.phaseApproach || '—'],
+        ['PoC / Phase 0 Scope', d.pocScope || '—'],
+        ['Key Milestones', d.keyMilestones || '—'],
+        ['Hypercare Period', d.hypercareWeeks || '—'],
+        ['Support Model', d.supportModel || '—'],
+        ['Support Tier', d.supportTier || '—'],
+        ['SLA – Availability', d.slaAvailability || '—'],
+        ['SLA – Response Time', d.slaResponseTime || '—'],
+        ['Maintenance Window', d.maintenanceWindow || '—'],
+        ['Training Required', d.trainingRequired ? 'Yes' : 'No'],
+        ['Training Approach', d.trainingApproach || '—'],
+        ['Client Will Provide', d.clientResponsibilities || '—'],
+        ['Practice Will Deliver', d.practiceResponsibilities || '—'],
+        ['Change Management Notes', d.changeManagementNotes || '—'],
+      ],
     };
   }
 

@@ -41,7 +41,8 @@ export default function App() {
             <Route path="intake" element={<UseCaseIntakePage />} />
             <Route path="classify" element={<SolutionClassificationPage />} />
             <Route path="complexity" element={<ComplexityScoringPage />} />
-            <Route path="patterns" element={<SolutionPatternBuilderPage />} />
+            <Route path="patterns" element={<Navigate to="/estimation" replace />} />
+            <Route path="patterns-library" element={<SolutionPatternBuilderPage />} />
             <Route path="estimation" element={<AzureEstimationPage />} />
             <Route path="wbs" element={<Navigate to="/estimation?tab=wbs" replace />} />
             <Route path="resources" element={<Navigate to="/estimation?tab=resources" replace />} />

@@ -8,16 +8,20 @@ import { Label } from './ui/label';
 import { Textarea } from './ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Sheet, SheetContent, SheetFooter, SheetHeader, SheetTitle } from './ui/sheet';
+import { Collapsible, CollapsibleTrigger, CollapsibleContent } from './ui/collapsible';
 import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from './ui/dropdown-menu';
 import {
   ArrowDown,
   ArrowUp,
   ArrowUpDown,
+  BarChart2,
   CheckCircle,
   ChevronDown,
+  ChevronRight,
   ChevronUp,
   Columns3,
   Edit2,
+  ExternalLink,
   Plus,
   RotateCcw,
   Search,
@@ -25,6 +29,7 @@ import {
   Zap,
 } from 'lucide-react';
 import { WorkflowNav } from './WorkflowNav';
+import { dimensions, scoreLabels, getClassification } from './ComplexityScoringPage';
 
 const complexityOptions = ['Low', 'Low-Medium', 'Medium', 'Medium-High', 'High', 'Very High'];
 const statusOptions = ['available', 'planned', 'custom'];
@@ -120,6 +125,7 @@ export function SolutionClassificationPage() {
   const {
     state,
     setClassification,
+    setComplexity,
     addClassificationPattern,
     updateClassificationPattern,
     deleteClassificationPattern,
@@ -138,6 +144,7 @@ export function SolutionClassificationPage() {
   const [sort, setSort] = useState<{ col: string; dir: 'asc' | 'desc' }>({ col: 'name', dir: 'asc' });
   const [expanded, setExpanded] = useState<string | null>(recommended || null);
   const [visibleOptionalColumns, setVisibleOptionalColumns] = useState<OptionalColumn[]>([]);
+  const [complexityOpen, setComplexityOpen] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editingPattern, setEditingPattern] = useState<ClassificationPattern | null>(null);
   const [form, setForm] = useState<ClassificationPattern>(blankPattern());
@@ -246,10 +253,14 @@ export function SolutionClassificationPage() {
     <div className="flex-1 px-5 py-4 space-y-4 w-full">
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-slate-900 dark:text-slate-100">Solution Classification</h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Select, edit, or add solution archetypes in a compact classification catalogue.</p>
+          <h1 className="text-slate-900 dark:text-slate-100">Solution Identification</h1>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Select the GenAI solution pattern, then calibrate complexity to inform your estimation.</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
+          <Button variant="outline" onClick={() => navigate('/patterns-library')} className="gap-2">
+            Browse Pattern Library
+            <ExternalLink className="size-4" />
+          </Button>
           <Button variant="outline" onClick={resetClassificationPatterns} className="gap-2">
             <RotateCcw className="size-4" />
             Reset Catalogue
@@ -566,6 +577,76 @@ export function SolutionClassificationPage() {
           </SheetFooter>
         </SheetContent>
       </Sheet>
+      {/* Complexity Calibration Panel */}
+      {(() => {
+        const scores = state.complexity;
+        const totalScore = Object.values(scores).reduce((a, b) => a + b, 0);
+        const scored = Object.values(scores).filter(v => v > 0).length;
+        const allScored = scored === dimensions.length;
+        const classification = getClassification(totalScore);
+        return (
+          <Collapsible open={complexityOpen} onOpenChange={setComplexityOpen}>
+            <div className={`rounded-xl border p-4 ${classification.bg}`}>
+              <CollapsibleTrigger asChild>
+                <button className="w-full flex items-center justify-between gap-3 text-left">
+                  <div className="flex items-center gap-3">
+                    <BarChart2 className={`size-5 ${classification.color} flex-shrink-0`} />
+                    <div>
+                      <div className={`font-semibold ${classification.color} text-sm`}>
+                        {allScored ? `Complexity Calibrated: ${classification.label}` : 'Complexity Calibration'}
+                        <span className="ml-2 font-normal text-slate-500 dark:text-slate-400 text-xs">
+                          {totalScore > 0 ? `Score ${totalScore}/50 · Multiplier ${classification.multiplier}` : 'Click to score 10 dimensions'}
+                        </span>
+                      </div>
+                      {allScored && (
+                        <div className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{classification.team} · {classification.timeline} · {classification.delivery}</div>
+                      )}
+                    </div>
+                  </div>
+                  <ChevronDown className={`size-4 text-slate-500 flex-shrink-0 transition-transform ${complexityOpen ? 'rotate-180' : ''}`} />
+                </button>
+              </CollapsibleTrigger>
+            </div>
+            <CollapsibleContent>
+              <div className="mt-2 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5 space-y-3">
+                <p className="text-xs text-slate-500 dark:text-slate-400">Rate each dimension 1–5 to generate an accurate complexity band and effort multiplier ({scored}/10 scored).</p>
+                <div className="space-y-2">
+                  {dimensions.map(dim => {
+                    const score = (scores as Record<string, number>)[dim.key] ?? 0;
+                    return (
+                      <div key={dim.key} className="flex items-start gap-3">
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm font-medium text-slate-800 dark:text-slate-100">{dim.label}</div>
+                          <div className="text-xs text-slate-500 dark:text-slate-400">{dim.desc}</div>
+                        </div>
+                        <div className="flex items-center gap-1 flex-shrink-0">
+                          {[1, 2, 3, 4, 5].map(n => (
+                            <button
+                              key={n}
+                              type="button"
+                              onClick={() => setComplexity({ [dim.key]: score === n ? 0 : n })}
+                              className={`size-8 rounded-lg text-xs font-semibold border transition-colors ${
+                                score === n
+                                  ? `${scoreLabels[n].color.replace('text-', 'bg-').replace('-600', '-100').replace('-700', '-100')} border-current`
+                                  : 'border-slate-200 dark:border-slate-600 text-slate-400 hover:border-slate-400 hover:text-slate-600 dark:hover:text-slate-200'
+                              }`}
+                            >
+                              {n}
+                            </button>
+                          ))}
+                          <span className={`ml-2 text-xs w-16 ${score > 0 ? scoreLabels[score].color : 'text-slate-400'}`}>
+                            {score > 0 ? scoreLabels[score].label : '—'}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
+        );
+      })()}
     </div>
     <WorkflowNav
       nextDisabled={!selected}

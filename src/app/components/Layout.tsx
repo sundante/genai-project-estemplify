@@ -9,23 +9,28 @@ import {
 import { useWorkbench } from './WorkbenchContext';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
-import { WORKFLOW_STEPS, getStepForPath } from '../workflow';
+import { getActiveSteps, getStepForPath } from '../workflow';
 
-const navItems = [
-  { path: '/', label: 'Home', icon: Home, exact: true },
-  { path: '/intake', label: 'Use-case Intake', icon: FileText },
-  { path: '/classify', label: 'Solution Classification', icon: Layers },
-  { path: '/complexity', label: 'Complexity Scoring', icon: BarChart2 },
-  { path: '/patterns', label: 'Solution Pattern Builder', icon: Grid },
-  { path: '/export', label: 'Export Center', icon: Download },
-  { path: '/templates', label: 'Template Library', icon: BookOpen },
-];
+const ALL_NAV_ITEMS = [
+  { path: '/', label: 'Home', icon: Home, exact: true, phase: null },
+  { path: '/intake', label: 'Project Intake', icon: FileText, phase: null },
+  { path: '/classify', label: 'Solution Identification', icon: Layers, phase: 'solution-id' },
+  { path: '/estimation', label: 'Estimation & Delivery', icon: Cloud, phase: 'any-estimation' },
+  { path: '/export', label: 'Export Center', icon: Download, phase: null },
+  { path: '/templates', label: 'Template Library', icon: BookOpen, phase: null },
+] as const;
 
-const sampleNavItems = [
-  { path: '/estimation', label: 'Agentic AI Prior Auth Estimate', icon: Cloud, badge: 'Sample', isHighlight: true },
-];
-
-const allNavItems = [...navItems, ...sampleNavItems];
+const BREADCRUMB_NAMES: Record<string, string> = {
+  '/': 'Home',
+  '/intake': 'Project Intake',
+  '/classify': 'Solution Identification',
+  '/complexity': 'Complexity Scoring',
+  '/patterns': 'Solution Pattern Builder',
+  '/estimation': 'Estimation & Delivery',
+  '/export': 'Export Center',
+  '/templates': 'Template Library',
+  '/print-export': 'Print Export',
+};
 
 const searchTemplates = [
   { title: 'Agentic AI Prior Auth Estimate', text: 'Generated sample estimation for an agentic AI prior authorization workflow, including WBS, resources, infra, ROI, assumptions, and risks.', path: '/estimation' },
@@ -65,11 +70,21 @@ export function Layout() {
   const [searchOpen, setSearchOpen] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
 
+  const activePhases = state.engagementConfig.activePhases;
+  const ESTIMATION_PHASES = ['hld', 'estimation', 'delivery', 'roi', 'risk-register'];
+
+  const navItems = ALL_NAV_ITEMS.filter(item => {
+    if (!item.phase) return true;
+    if (item.phase === 'solution-id') return activePhases.includes('solution-id');
+    if (item.phase === 'any-estimation') return ESTIMATION_PHASES.some(p => activePhases.includes(p));
+    return true;
+  });
+
+  const activeSteps = getActiveSteps(activePhases);
+
   const isActive = (path: string, exact?: boolean) => {
     if (exact) return location.pathname === path;
-    if (path === '/estimation') {
-      return location.pathname === '/estimation' || ['/wbs', '/resources', '/infra', '/assumptions', '/risks'].includes(location.pathname);
-    }
+    if (path === '/estimation') return location.pathname.startsWith('/estimation');
     return location.pathname === path;
   };
 
@@ -116,10 +131,47 @@ export function Layout() {
       { category: 'Assumptions', items: state.azure.assumptions.map(r => ({ title: r.category, text: r.description, path: '/estimation?tab=assumptions' })).filter(match) },
       { category: 'Risks', items: state.azure.risks.map(r => ({ title: r.riskId, text: r.description, path: '/estimation?tab=risks' })).filter(match) },
       { category: 'Components', items: searchComponents.filter(match) },
+      {
+        category: 'Intake',
+        items: [
+          { title: 'Engagement Type', text: state.intake.engagementType, path: '/intake' },
+          { title: 'Commercial Model', text: state.intake.commercialModel, path: '/intake' },
+          { title: 'Budget Indicator', text: state.intake.budgetIndicator, path: '/intake' },
+          { title: 'Compliance Frameworks', text: state.intake.complianceFlags.join(' '), path: '/intake' },
+          { title: 'EHR System', text: state.intake.ehrSystem, path: '/intake' },
+          { title: 'Integration Standard', text: state.intake.fhirVersion, path: '/intake' },
+          { title: 'FDA Regulatory Pathway', text: state.intake.fdaPathway, path: '/intake' },
+          { title: 'Clinical Validation Required', text: state.intake.clinicalValidationRequired ? 'Clinical validation required' : 'Clinical validation not required', path: '/intake' },
+          { title: 'Win Theme / Executive Summary', text: state.azure.overview.executiveSummary, path: '/estimation?tab=overview' },
+        ].filter(match),
+      },
+      {
+        category: 'Delivery',
+        items: [
+          { title: 'Pod Composition', text: state.azure.delivery.podComposition, path: '/estimation?tab=delivery' },
+          { title: 'Delivery Mix', text: `${state.azure.delivery.onshorePct}% onshore ${state.azure.delivery.offshorePct}% offshore ${state.azure.delivery.nearshorePct}% nearshore`, path: '/estimation?tab=delivery' },
+          { title: 'Client Resources', text: state.azure.delivery.clientResources, path: '/estimation?tab=delivery' },
+          { title: 'Engagement Model', text: state.azure.delivery.engagementModel, path: '/estimation?tab=delivery' },
+          { title: 'Phase Approach', text: state.azure.delivery.phaseApproach, path: '/estimation?tab=delivery' },
+          { title: 'PoC / Phase 0 Scope', text: state.azure.delivery.pocScope, path: '/estimation?tab=delivery' },
+          { title: 'Key Milestones', text: state.azure.delivery.keyMilestones, path: '/estimation?tab=delivery' },
+          { title: 'Hypercare Period', text: state.azure.delivery.hypercareWeeks, path: '/estimation?tab=delivery' },
+          { title: 'Support Model', text: state.azure.delivery.supportModel, path: '/estimation?tab=delivery' },
+          { title: 'Support Tier', text: state.azure.delivery.supportTier, path: '/estimation?tab=delivery' },
+          { title: 'SLA Availability', text: state.azure.delivery.slaAvailability, path: '/estimation?tab=delivery' },
+          { title: 'SLA Response Time', text: state.azure.delivery.slaResponseTime, path: '/estimation?tab=delivery' },
+          { title: 'Maintenance Window', text: state.azure.delivery.maintenanceWindow, path: '/estimation?tab=delivery' },
+          { title: 'Training Required', text: state.azure.delivery.trainingRequired ? 'Training required' : 'Training not required', path: '/estimation?tab=delivery' },
+          { title: 'Training Approach', text: state.azure.delivery.trainingApproach, path: '/estimation?tab=delivery' },
+          { title: 'Client Responsibilities', text: state.azure.delivery.clientResponsibilities, path: '/estimation?tab=delivery' },
+          { title: 'Practice Responsibilities', text: state.azure.delivery.practiceResponsibilities, path: '/estimation?tab=delivery' },
+          { title: 'Change Management Notes', text: state.azure.delivery.changeManagementNotes, path: '/estimation?tab=delivery' },
+        ].filter(match),
+      },
       { category: 'Archetypes', items: state.classification.patterns.map(pattern => ({ title: pattern.name, text: `${pattern.whenToUse} ${pattern.capabilities.join(' ')} ${pattern.triggers.join(' ')}`, path: '/classify' })).filter(match) },
     ];
     return groups.filter(group => group.items.length > 0);
-  }, [debouncedSearch, state.azure.assumptions, state.azure.risks, state.azure.wbs, state.classification.patterns]);
+  }, [debouncedSearch, state.azure.assumptions, state.azure.delivery, state.azure.overview.executiveSummary, state.azure.risks, state.azure.wbs, state.classification.patterns, state.intake.budgetIndicator, state.intake.clinicalValidationRequired, state.intake.commercialModel, state.intake.complianceFlags, state.intake.ehrSystem, state.intake.engagementType, state.intake.fdaPathway, state.intake.fhirVersion]);
 
   const selectResult = (path: string) => {
     navigate(path);
@@ -148,45 +200,13 @@ export function Layout() {
         <nav className="flex-1 overflow-y-auto py-3 px-2">
           {navItems.map((item) => {
             const Icon = item.icon;
-            const active = isActive(item.path, item.exact);
+            const active = isActive(item.path, 'exact' in item ? item.exact : undefined);
             return (
               <Link
                 key={item.path}
                 to={item.path}
                 title={!sidebarOpen ? item.label : undefined}
-                className={`flex items-center gap-3 px-3 py-2 rounded-lg mb-0.5 transition-colors group
-                  ${item.isSubItem ? 'ml-3' : ''}
-                  ${active
-                    ? 'bg-blue-600 text-white'
-                    : 'text-slate-400 hover:bg-slate-800 hover:text-slate-100'
-                  }`}
-              >
-                <Icon className={`flex-shrink-0 ${item.isSubItem ? 'size-3.5' : 'size-4'}`} />
-                {sidebarOpen && (
-                  <>
-                    <span className={`flex-1 truncate ${item.isSubItem ? 'text-xs' : 'text-sm'}`}>{item.label}</span>
-                    {item.badge && (
-                      <span className="text-xs bg-emerald-500 text-white px-1.5 py-0.5 rounded-full shrink-0">{item.badge}</span>
-                    )}
-                  </>
-                )}
-              </Link>
-            );
-          })}
-          {sidebarOpen && (
-            <div className="px-3 pt-4 pb-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-              Samples
-            </div>
-          )}
-          {sampleNavItems.map((item) => {
-            const Icon = item.icon;
-            const active = isActive(item.path, item.exact);
-            return (
-              <Link
-                key={item.path}
-                to={item.path}
-                title={!sidebarOpen ? item.label : undefined}
-                className={`flex items-center gap-3 px-3 py-2 rounded-lg mb-0.5 transition-colors group
+                className={`flex items-center gap-3 px-3 py-2 rounded-lg mb-0.5 transition-colors
                   ${active
                     ? 'bg-blue-600 text-white'
                     : 'text-slate-400 hover:bg-slate-800 hover:text-slate-100'
@@ -194,12 +214,7 @@ export function Layout() {
               >
                 <Icon className="flex-shrink-0 size-4" />
                 {sidebarOpen && (
-                  <>
-                    <span className="flex-1 truncate text-sm">{item.label}</span>
-                    {item.badge && (
-                      <span className="text-xs bg-emerald-500 text-white px-1.5 py-0.5 rounded-full shrink-0">{item.badge}</span>
-                    )}
-                  </>
+                  <span className="flex-1 truncate text-sm">{item.label}</span>
                 )}
               </Link>
             );
@@ -234,7 +249,7 @@ export function Layout() {
           <div className="flex items-center gap-1.5 text-sm text-slate-500 dark:text-slate-400">
             <span className="text-slate-800 dark:text-slate-100 font-medium">GenForge</span>
             <ChevronRight className="size-3.5" />
-            <span>{allNavItems.find(n => isActive(n.path, n.exact))?.label || 'Overview'}</span>
+            <span>{BREADCRUMB_NAMES[location.pathname] || 'Overview'}</span>
           </div>
 
           <div className="flex-1" />
@@ -323,11 +338,11 @@ export function Layout() {
         {/* Workflow progress bar */}
         {currentStep && (
           <div className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700 px-4 py-2 flex items-center gap-1 flex-shrink-0 overflow-x-auto">
-            {WORKFLOW_STEPS.map((step, i) => {
+            {activeSteps.map((step, i) => {
               const isCurrent = step.n === currentStep.n;
               const isCompleted = step.n < currentStep.n;
               return (
-                <div key={step.n} className="flex items-center gap-1 flex-shrink-0">
+                <div key={step.id} className="flex items-center gap-1 flex-shrink-0">
                   <button
                     onClick={() => navigate(step.navPath)}
                     className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium whitespace-nowrap transition-colors
@@ -345,7 +360,7 @@ export function Layout() {
                     }
                     {step.name}
                   </button>
-                  {i < WORKFLOW_STEPS.length - 1 && (
+                  {i < activeSteps.length - 1 && (
                     <ChevronRight className="size-3 text-slate-300 dark:text-slate-600 flex-shrink-0" />
                   )}
                 </div>

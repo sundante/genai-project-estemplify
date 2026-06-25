@@ -2,7 +2,7 @@ import { STORAGE_KEY, type WorkbenchState } from './WorkbenchContext';
 import { Button } from './ui/button';
 import { sectionTable, type SectionName } from '../../utils/exports/core';
 
-const sections: SectionName[] = ['overview', 'components', 'agents', 'wbs', 'resources', 'infra', 'roi', 'assumptions', 'risks'];
+const sections: SectionName[] = ['overview', 'components', 'agents', 'wbs', 'resources', 'infra', 'roi', 'assumptions', 'risks', 'delivery'];
 
 function loadState(): WorkbenchState | null {
   try {
@@ -75,6 +75,7 @@ export function PrintFriendlyExportView() {
                 ['Business Problem', state.intake.businessProblem],
                 ['Current Process', state.intake.currentProcess],
                 ['Desired Future State', state.intake.desiredFutureState],
+                ['Win Theme / Executive Summary', state.azure.overview.executiveSummary],
               ].map(row => (
                 <tr key={row[0]}>
                   <th className="border border-slate-300 bg-slate-100 p-2 text-left align-top w-48">{row[0]}</th>
