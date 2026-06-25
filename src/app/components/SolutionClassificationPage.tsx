@@ -9,7 +9,6 @@ import { Textarea } from './ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Sheet, SheetContent, SheetFooter, SheetHeader, SheetTitle } from './ui/sheet';
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from './ui/collapsible';
-import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from './ui/dropdown-menu';
 import {
   ArrowDown,
   ArrowUp,
@@ -19,7 +18,6 @@ import {
   ChevronDown,
   ChevronRight,
   ChevronUp,
-  Columns3,
   Edit2,
   ExternalLink,
   Plus,
@@ -34,18 +32,6 @@ import { dimensions, scoreLabels, getClassification } from './ComplexityScoringP
 const complexityOptions = ['Low', 'Low-Medium', 'Medium', 'Medium-High', 'High', 'Very High'];
 const statusOptions = ['available', 'planned', 'custom'];
 const sourceOptions = ['default', 'custom'];
-
-const optionalColumns = [
-  { id: 'capabilities', label: 'Capability Summary' },
-  { id: 'source', label: 'Source' },
-  { id: 'triggers', label: 'Triggers' },
-  { id: 'architecture', label: 'Architecture Implications' },
-  { id: 'estimation', label: 'Estimation Implications' },
-  { id: 'delivery', label: 'Delivery Notes' },
-  { id: 'export', label: 'Include in Export' },
-] as const;
-
-type OptionalColumn = typeof optionalColumns[number]['id'];
 
 const complexityRank: Record<string, number> = {
   Low: 1,
@@ -143,7 +129,6 @@ export function SolutionClassificationPage() {
   const [focusFilter, setFocusFilter] = useState('All');
   const [sort, setSort] = useState<{ col: string; dir: 'asc' | 'desc' }>({ col: 'name', dir: 'asc' });
   const [expanded, setExpanded] = useState<string | null>(recommended || null);
-  const [visibleOptionalColumns, setVisibleOptionalColumns] = useState<OptionalColumn[]>([]);
   const [complexityOpen, setComplexityOpen] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editingPattern, setEditingPattern] = useState<ClassificationPattern | null>(null);
@@ -166,6 +151,9 @@ export function SolutionClassificationPage() {
     });
 
     return [...rows].sort((a, b) => {
+      if (a.status !== b.status) {
+        return a.status === 'available' ? -1 : 1;
+      }
       let cmp = 0;
       if (sort.col === 'complexity') cmp = (complexityRank[a.complexity] || 0) - (complexityRank[b.complexity] || 0);
       else if (sort.col === 'timeline') cmp = a.timeline.localeCompare(b.timeline);
@@ -218,14 +206,7 @@ export function SolutionClassificationPage() {
     }
   };
 
-  const toggleOptionalColumn = (column: OptionalColumn) => {
-    setVisibleOptionalColumns(current =>
-      current.includes(column) ? current.filter(item => item !== column) : [...current, column]
-    );
-  };
-
-  const showColumn = (column: OptionalColumn) => visibleOptionalColumns.includes(column);
-  const columnCount = 8 + visibleOptionalColumns.length;
+  const columnCount = 8;
 
   const toggleSort = (col: string) => {
     setSort(prev => prev.col === col ? { col, dir: prev.dir === 'asc' ? 'desc' : 'asc' } : { col, dir: 'asc' });
@@ -283,7 +264,7 @@ export function SolutionClassificationPage() {
       )}
 
       <div className="space-y-3">
-        <div className="grid grid-cols-1 md:grid-cols-[2fr_repeat(5,minmax(140px,1fr))] gap-2">
+        <div className="grid grid-cols-1 md:grid-cols-[2fr_repeat(4,minmax(140px,1fr))] gap-2">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-slate-400" />
             <Input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search classifications..." className="pl-9" />
@@ -317,32 +298,11 @@ export function SolutionClassificationPage() {
               <SelectItem value="Selected">Selected</SelectItem>
             </SelectContent>
           </Select>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" className="justify-between gap-2">
-                <span className="flex items-center gap-2"><Columns3 className="size-4" /> Columns</span>
-                <span className="text-xs text-slate-400">{visibleOptionalColumns.length}</span>
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-64">
-              <DropdownMenuLabel>Priority columns are always visible</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              {optionalColumns.map(column => (
-                <DropdownMenuCheckboxItem
-                  key={column.id}
-                  checked={showColumn(column.id)}
-                  onCheckedChange={() => toggleOptionalColumn(column.id)}
-                >
-                  {column.label}
-                </DropdownMenuCheckboxItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
         </div>
 
         <div className="border-y border-slate-200 dark:border-slate-700 -mx-5 bg-white dark:bg-slate-800">
           <div className="overflow-x-auto">
-            <table className={`${visibleOptionalColumns.length ? 'min-w-[1500px]' : 'min-w-[1080px]'} w-full table-fixed text-sm`}>
+            <table className="min-w-[1080px] w-full table-fixed text-sm">
               <colgroup>
                 <col className="w-16" />
                 <col className="w-64" />
@@ -351,13 +311,6 @@ export function SolutionClassificationPage() {
                 <col className="w-48" />
                 <col className="w-40" />
                 <col />
-                {showColumn('capabilities') && <col className="w-80" />}
-                {showColumn('source') && <col className="w-28" />}
-                {showColumn('triggers') && <col className="w-72" />}
-                {showColumn('architecture') && <col className="w-96" />}
-                {showColumn('estimation') && <col className="w-96" />}
-                {showColumn('delivery') && <col className="w-80" />}
-                {showColumn('export') && <col className="w-32" />}
                 <col className="w-44" />
               </colgroup>
               <thead className="bg-slate-100 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700 sticky top-0 z-10">
@@ -369,13 +322,6 @@ export function SolutionClassificationPage() {
                   {sortTh('patternType', 'Pattern Type')}
                   {sortTh('status', 'Status')}
                   <th className="px-4 py-2.5 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide whitespace-nowrap">When to Use</th>
-                  {showColumn('capabilities') && <th className="px-4 py-2.5 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide whitespace-nowrap">Capability Summary</th>}
-                  {showColumn('source') && sortTh('source', 'Source')}
-                  {showColumn('triggers') && <th className="px-4 py-2.5 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide whitespace-nowrap">Triggers</th>}
-                  {showColumn('architecture') && <th className="px-4 py-2.5 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide whitespace-nowrap">Architecture</th>}
-                  {showColumn('estimation') && <th className="px-4 py-2.5 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide whitespace-nowrap">Estimation</th>}
-                  {showColumn('delivery') && <th className="px-4 py-2.5 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide whitespace-nowrap">Delivery Notes</th>}
-                  {showColumn('export') && sortTh('includeInExport', 'Export')}
                   <th className="sticky right-0 bg-slate-100 dark:bg-slate-900 px-4 py-2.5 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide whitespace-nowrap shadow-[-8px_0_12px_-12px_rgba(15,23,42,0.6)]">Actions</th>
                 </tr>
               </thead>
@@ -410,18 +356,11 @@ export function SolutionClassificationPage() {
                         <td className="px-4 py-3 whitespace-nowrap text-slate-600 dark:text-slate-300">{pattern.timeline}</td>
                         <td className="px-4 py-3 whitespace-nowrap text-slate-600 dark:text-slate-300">{pattern.patternType || '-'}</td>
                         <td className="px-4 py-3">
-                          <div className="flex gap-1">
-                            <Badge variant="secondary">{pattern.status}</Badge>
-                          </div>
+                          <Badge variant={pattern.status === 'available' ? 'default' : 'secondary'}>
+                            {pattern.status === 'available' ? 'Active' : pattern.status === 'planned' ? 'Coming Soon' : pattern.status}
+                          </Badge>
                         </td>
                         <td className="px-4 py-3 text-slate-600 dark:text-slate-300"><div className="line-clamp-2">{pattern.whenToUse}</div></td>
-                        {showColumn('capabilities') && <td className="px-4 py-3 text-slate-600 dark:text-slate-300"><div className="line-clamp-2">{pattern.capabilities.join(', ')}</div></td>}
-                        {showColumn('source') && <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{pattern.source}</td>}
-                        {showColumn('triggers') && <td className="px-4 py-3 text-slate-600 dark:text-slate-300"><div className="line-clamp-2">{pattern.triggers.join(', ') || '-'}</div></td>}
-                        {showColumn('architecture') && <td className="px-4 py-3 text-slate-600 dark:text-slate-300"><div className="line-clamp-2">{pattern.architectureImplications || '-'}</div></td>}
-                        {showColumn('estimation') && <td className="px-4 py-3 text-slate-600 dark:text-slate-300"><div className="line-clamp-2">{pattern.estimationImplications || '-'}</div></td>}
-                        {showColumn('delivery') && <td className="px-4 py-3 text-slate-600 dark:text-slate-300"><div className="line-clamp-2">{pattern.deliveryNotes || '-'}</div></td>}
-                        {showColumn('export') && <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{pattern.includeInExport ? 'Yes' : 'No'}</td>}
                         <td className="sticky right-0 bg-inherit px-4 py-3 whitespace-nowrap shadow-[-8px_0_12px_-12px_rgba(15,23,42,0.6)]">
                           <Button size="sm" variant="outline" onClick={() => openEdit(pattern)} className="gap-1.5 mr-2"><Edit2 className="size-3.5" /> Edit</Button>
                           <Button size="sm" variant="outline" disabled={pattern.source !== 'custom'} onClick={() => deletePattern(pattern)} className="gap-1.5 text-red-600 hover:text-red-700"><Trash2 className="size-3.5" /> Delete</Button>
@@ -435,7 +374,7 @@ export function SolutionClassificationPage() {
                               <span className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400">Pattern Type: <span className="bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 px-2 py-0.5 rounded-full font-medium">{pattern.patternType || '—'}</span></span>
                               <span className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400">Complexity: <span className={`px-2 py-0.5 rounded-full font-medium ${complexityColor[pattern.complexity] || 'bg-slate-100 text-slate-600'}`}>{pattern.complexity}</span></span>
                               <span className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400">Timeline: <span className="bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 px-2 py-0.5 rounded-full font-medium">{pattern.timeline}</span></span>
-                              <span className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400">Status: <Badge variant="secondary">{pattern.status}</Badge></span>
+                              <span className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400">Status: <Badge variant={pattern.status === 'available' ? 'default' : 'secondary'}>{pattern.status === 'available' ? 'Active' : pattern.status === 'planned' ? 'Coming Soon' : pattern.status}</Badge></span>
                               <span className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400">Source: <span className="bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 px-2 py-0.5 rounded-full font-medium">{pattern.source}</span></span>
                               <span className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400">Export: <span className={`px-2 py-0.5 rounded-full font-medium ${pattern.includeInExport ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400'}`}>{pattern.includeInExport ? 'Included' : 'Excluded'}</span></span>
                             </div>

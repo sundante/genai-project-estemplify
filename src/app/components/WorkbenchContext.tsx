@@ -380,7 +380,7 @@ const defaultClassificationPatterns: ClassificationPattern[] = [
     estimationImplications: 'Adds backend, evaluation, and governance effort beyond standard RAG delivery.',
     deliveryNotes: 'Use when retrieval alone is not enough and the workflow needs controlled tool execution.',
     source: 'default',
-    status: 'available',
+    status: 'planned',
     includeInExport: true,
   },
   {
@@ -396,7 +396,7 @@ const defaultClassificationPatterns: ClassificationPattern[] = [
     estimationImplications: 'Requires cross-functional staffing and explicit buffers for integration, testing, security, and SME validation.',
     deliveryNotes: 'Best fit for operational processes where AI recommendations must be reviewed, traced, and governed.',
     source: 'default',
-    status: 'available',
+    status: 'planned',
     includeInExport: true,
   },
   {
@@ -825,90 +825,7 @@ export function WorkbenchProvider({ children }: { children: React.ReactNode }) {
 
   const resetWorkspace = () => setState({ ...defaultState, darkMode: state.darkMode });
 
-  const seedWorkspace = () => {
-    setState({
-      ...defaultState,
-      darkMode: state.darkMode,
-      engagementConfig: {
-        activePhases: ['intake', 'solution-id', 'hld', 'estimation', 'delivery', 'roi', 'risk-register', 'export'],
-        preset: 'Full SOW Build',
-      },
-      intake: {
-        ...defaultState.intake,
-        clientName: 'DemoClient',
-        opportunityName: 'Agentic AI Prior Authorization Assist',
-        marketSegment: 'Payer',
-        businessFunction: 'Prior Authorization',
-        opportunityStage: 'Proposal',
-        targetDeliveryType: 'MVP',
-        businessProblem: 'Manual prior authorization process requires clinicians to review 200+ requests per day, with 40% requiring rework due to missing documentation. Average turnaround is 48 hours.',
-        currentProcess: 'Clinical staff manually review PA requests, cross-reference payer policies, and make approve/deny recommendations with limited tooling support.',
-        desiredFutureState: 'Automated agentic AI workflow that retrieves policy, extracts clinical evidence, generates recommendation, and routes to HITL review, reducing turnaround to under 4 hours.',
-        targetUsers: ['Claims Analyst', 'Nurse', 'Care Manager', 'Reviewer'],
-        expectedOutcomes: ['Reduce manual effort', 'Reduce turnaround time', 'Improve accuracy', 'Reduce risk'],
-        dataTypes: ['PDFs', 'Scanned Documents', 'Clinical Notes', 'Policies', 'Guidelines', 'FHIR/HL7'],
-        sourceSystems: ['EHR System', 'Claims System', 'Document Repository'],
-        phiPii: true,
-        complianceFlags: ['HIPAA', 'SOC 2 Type II'],
-        ehrSystem: 'Epic',
-        fhirVersion: 'FHIR R4',
-        fdaPathway: 'Not a medical device',
-        clinicalValidationRequired: true,
-        engagementType: 'New Build',
-        commercialModel: 'T&M',
-        budgetIndicator: '$500K–$1M',
-      },
-      classification: { selectedPattern: 'agentic-workflow', patterns: defaultClassificationPatterns },
-      complexity: {
-        dataSources: 4,
-        dataTypes: 4,
-        integrationDepth: 4,
-        aiPattern: 4,
-        governanceNeed: 4,
-        userScale: 4,
-        complianceRequirement: 4,
-        groundTruthAvailability: 4,
-        smeValidationNeed: 4,
-        productionReadiness: 4,
-      },
-      azure: {
-        ...defaultState.azure,
-        mode: 'working-copy',
-        overview: {
-          ...defaultState.azure.overview,
-          useCaseName: 'Agentic AI Prior Authorization Assist',
-          executiveSummary: 'Internal AI Practice proposes an Agentic AI Prior Authorization workflow leveraging Azure OpenAI and Azure AI Search to reduce PA turnaround time by 85% while maintaining HIPAA compliance and full audit traceability.',
-        },
-        roi: {
-          ...defaultState.azure.roi,
-          currentEffortHoursPerWorkflow: 2,
-          currentFTECostPerHour: 0,
-          currentErrorRatePct: 40,
-          currentTurnaroundHours: 48,
-          projectedEffortReductionPct: 70,
-          projectedErrorReductionPct: 80,
-          projectedTurnaroundReductionPct: 85,
-        },
-        delivery: {
-          ...defaultState.azure.delivery,
-          podComposition: 'Solution Architect (0.5 FTE), GenAI Architect (1 FTE), AI/ML Engineer (2 FTE), QA Engineer (1 FTE)',
-          onshorePct: 60,
-          offshorePct: 40,
-          nearshorePct: 0,
-          engagementModel: 'Agile Sprints',
-          phaseApproach: 'Phased Delivery (P0 PoC → P1 MVP → P2 Production)',
-          pocScope: '4-week PoC to validate RAG retrieval accuracy and HITL workflow integration before committing to full build.',
-          hypercareWeeks: '4 weeks',
-          supportModel: 'Hybrid (shared ops)',
-          supportTier: 'L1 + L2',
-          slaAvailability: '99.5%',
-          slaResponseTime: '4 hours for P1 incidents',
-          trainingRequired: true,
-          trainingApproach: 'Live sessions',
-        },
-      },
-    });
-  };
+  const seedWorkspace = () => { };
 
   const setValidationStatus = (v: WorkbenchState['validationStatus']) =>
     update(s => ({ ...s, validationStatus: v }));

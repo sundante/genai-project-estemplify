@@ -14,7 +14,6 @@ import {
   FileJson,
   FileText,
   Layers,
-  RefreshCw,
   Settings,
   Sheet,
 } from 'lucide-react';
@@ -104,7 +103,7 @@ const CUSTOMISABLE_PHASES = [
 
 export function HomePage() {
   const navigate = useNavigate();
-  const { state, seedWorkspace, setEngagementConfig } = useWorkbench();
+  const { state, setEngagementConfig } = useWorkbench();
   const [showSetup, setShowSetup] = useState(!state.intake.clientName);
   const [customOpen, setCustomOpen] = useState(false);
 
@@ -125,15 +124,6 @@ export function HomePage() {
       ? current.filter(p => p !== phaseId)
       : [...current, phaseId];
     setEngagementConfig({ preset: 'Custom', activePhases: next });
-  };
-
-  const loadSample = () => {
-    if (state.intake.clientName) {
-      const ok = window.confirm('This will replace your current workspace with the Agentic AI Prior Auth sample. Continue?');
-      if (!ok) return;
-    }
-    seedWorkspace();
-    navigate('/estimation');
   };
 
   const canBegin = !!state.engagementConfig.preset;
@@ -230,10 +220,6 @@ export function HomePage() {
               className="bg-blue-600 hover:bg-blue-700 text-white gap-2"
             >
               Begin Engagement <ArrowRight className="size-4" />
-            </Button>
-            <Button onClick={loadSample} variant="outline" className="gap-2">
-              <RefreshCw className="size-4" />
-              Load Sample Scenario
             </Button>
           </div>
         </section>

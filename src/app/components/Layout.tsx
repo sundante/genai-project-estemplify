@@ -12,13 +12,14 @@ import { Badge } from './ui/badge';
 import { getActiveSteps, getStepForPath } from '../workflow';
 
 const ALL_NAV_ITEMS = [
-  { path: '/', label: 'Home', icon: Home, exact: true, phase: null },
-  { path: '/intake', label: 'Project Intake', icon: FileText, phase: null },
-  { path: '/classify', label: 'Solution Identification', icon: Layers, phase: 'solution-id' },
-  { path: '/estimation', label: 'Estimation & Delivery', icon: Cloud, phase: 'any-estimation' },
-  { path: '/export', label: 'Export Center', icon: Download, phase: null },
-  { path: '/templates', label: 'Template Library', icon: BookOpen, phase: null },
-] as const;
+  { id: 'home', path: '/', label: 'Home', icon: Home, exact: true as const, phase: null },
+  { id: 'intake', path: '/intake', label: 'Project Intake', icon: FileText, exact: false as const, phase: null },
+  { id: 'classify', path: '/classify', label: 'Solution Identification', icon: Layers, exact: false as const, phase: 'solution-id' },
+  { id: 'hld', path: '/estimation?tab=overview', label: 'Architecture & HLD', icon: Grid, exact: false as const, phase: 'hld' },
+  { id: 'estimation', path: '/estimation', label: 'Estimation & Delivery', icon: Cloud, exact: false as const, phase: 'any-estimation' },
+  { id: 'export', path: '/export', label: 'Export Center', icon: Download, exact: false as const, phase: null },
+  { id: 'templates', path: '/templates', label: 'Template Library', icon: BookOpen, exact: false as const, phase: null },
+];
 
 const BREADCRUMB_NAMES: Record<string, string> = {
   '/': 'Home',
@@ -71,22 +72,37 @@ export function Layout() {
   const searchRef = useRef<HTMLDivElement>(null);
 
   const activePhases = state.engagementConfig.activePhases;
-  const ESTIMATION_PHASES = ['hld', 'estimation', 'delivery', 'roi', 'risk-register'];
+  const NON_HLD_ESTIMATION = ['estimation', 'delivery', 'roi', 'risk-register'];
 
   const navItems = ALL_NAV_ITEMS.filter(item => {
     if (!item.phase) return true;
     if (item.phase === 'solution-id') return activePhases.includes('solution-id');
-    if (item.phase === 'any-estimation') return ESTIMATION_PHASES.some(p => activePhases.includes(p));
+    if (item.phase === 'hld') return activePhases.includes('hld');
+    if (item.phase === 'any-estimation') return NON_HLD_ESTIMATION.some(p => activePhases.includes(p));
     return true;
   });
 
   const activeSteps = getActiveSteps(activePhases);
 
-  const isActive = (path: string, exact?: boolean) => {
-    if (exact) return location.pathname === path;
-    if (path === '/estimation') return location.pathname.startsWith('/estimation');
-    return location.pathname === path;
+  const HLD_TABS = new Set(['overview', 'components', 'agents']);
+  const currentTab = new URLSearchParams(location.search).get('tab') || 'overview';
+  const hldPhaseActive = activePhases.includes('hld');
+
+  const isActive = (item: { id: string; path: string; exact: boolean }) => {
+    if (item.exact) return location.pathname === '/';
+    if (item.id === 'hld') {
+      return location.pathname.startsWith('/estimation') && HLD_TABS.has(currentTab);
+    }
+    if (item.id === 'estimation') {
+      if (!hldPhaseActive) return location.pathname.startsWith('/estimation');
+      return location.pathname.startsWith('/estimation') && !HLD_TABS.has(currentTab);
+    }
+    return location.pathname === item.path;
   };
+
+  const breadcrumbName = location.pathname === '/estimation'
+    ? (hldPhaseActive && HLD_TABS.has(currentTab) ? 'Architecture & HLD' : 'Estimation & Delivery')
+    : (BREADCRUMB_NAMES[location.pathname] || 'Overview');
 
   const validationIcon = {
     draft: <AlertCircle className="size-4 text-amber-500" />,
@@ -200,10 +216,10 @@ export function Layout() {
         <nav className="flex-1 overflow-y-auto py-3 px-2">
           {navItems.map((item) => {
             const Icon = item.icon;
-            const active = isActive(item.path, 'exact' in item ? item.exact : undefined);
+            const active = isActive(item);
             return (
               <Link
-                key={item.path}
+                key={item.id}
                 to={item.path}
                 title={!sidebarOpen ? item.label : undefined}
                 className={`flex items-center gap-3 px-3 py-2 rounded-lg mb-0.5 transition-colors
@@ -219,6 +235,7 @@ export function Layout() {
               </Link>
             );
           })}
+
         </nav>
 
         {/* Sidebar footer actions */}
@@ -249,7 +266,7 @@ export function Layout() {
           <div className="flex items-center gap-1.5 text-sm text-slate-500 dark:text-slate-400">
             <span className="text-slate-800 dark:text-slate-100 font-medium">GenForge</span>
             <ChevronRight className="size-3.5" />
-            <span>{BREADCRUMB_NAMES[location.pathname] || 'Overview'}</span>
+            <span>{breadcrumbName}</span>
           </div>
 
           <div className="flex-1" />
